@@ -17,7 +17,7 @@ const dir = join(import.meta.dirname, '../../../fixtures/2026-10-10');
 const read = (name: string) => readFileSync(join(dir, name), 'utf8');
 
 const game = JSON.parse(
-  readFileSync(join(import.meta.dirname, '../../../games/2026-10-10/game.json'), 'utf8'),
+  readFileSync(join(import.meta.dirname, '../../../fixtures/2026-10-10/game.json'), 'utf8'),
 ) as Game;
 const { kps } = ingest({ md: read('notion-export.md'), game });
 const gaz = JSON.parse(read('osm-gazetteer.json')) as Gazetteer;

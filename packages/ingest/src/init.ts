@@ -13,6 +13,11 @@ import { parseNotion } from './parse.ts';
 
 export const ORIG_MD = 'notion-export.orig.md';
 export const WORK_MD = 'notion-export.md';
+/** games/_template/game.json — конфиг-образец (в git); берётся, если прошлых игр нет. */
+export const TEMPLATE_DIR = '_template';
+
+/** Каталог игры — дата: games/2026-12-05. Остальное в games/ (osm, _template) — не игры. */
+const GAME_DIR_NAME = /^\d{4}-\d{2}-\d{2}$/;
 
 export class InitError extends Error {}
 
@@ -21,7 +26,10 @@ export interface InitOptions {
   gamesDir: string;
   /** ГГГГ-ММ-ДД — id игры и имя каталога; по умолчанию — сегодня (локальное время). */
   date?: string;
-  /** Каталог прошлой игры, откуда взять game.json; по умолчанию — последний в gamesDir. */
+  /**
+   * Каталог, откуда взять game.json; по умолчанию — последняя прошлая игра в gamesDir,
+   * а если их нет — games/_template.
+   */
   from?: string;
 }
 
@@ -52,7 +60,7 @@ export interface InitResult {
  */
 export function initGame(o: InitOptions): InitResult {
   const date = o.date ?? todayLocal();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  if (!GAME_DIR_NAME.test(date)) {
     throw new InitError(`Дата должна быть в виде ГГГГ-ММ-ДД, получено «${date}»`);
   }
   const gameDir = join(o.gamesDir, date);
@@ -80,7 +88,7 @@ export function initGame(o: InitOptions): InitResult {
     from = o.from ?? latestGameDir(o.gamesDir, date);
     if (!from) {
       throw new InitError(
-        `В ${o.gamesDir} нет прошлой игры с game.json — передайте --from <каталог игры>`,
+        `В ${o.gamesDir} нет ни прошлой игры, ни ${TEMPLATE_DIR}/game.json — передайте --from <каталог с game.json>`,
       );
     }
     ({ game, check } = gameFromPrevious(loadGame(join(from, 'game.json')), date, md.text));
@@ -234,16 +242,24 @@ function fromZip(
   );
 }
 
-/** Последний (по имени-дате) каталог с game.json, кроме создаваемого. */
-function latestGameDir(gamesDir: string, exclude: string): string | null {
-  if (!existsSync(gamesDir)) return null;
-  const dirs = readdirSync(gamesDir, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && d.name !== exclude)
+/** Каталоги игр (имя — дата), в которых есть файл `file`, по возрастанию даты. */
+function gameDirs(gamesDir: string, file: string): string[] {
+  if (!existsSync(gamesDir)) return [];
+  return readdirSync(gamesDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && GAME_DIR_NAME.test(d.name))
     .map((d) => d.name)
-    .filter((name) => existsSync(join(gamesDir, name, 'game.json')))
+    .filter((name) => existsSync(join(gamesDir, name, file)))
     .sort();
-  const last = dirs.at(-1);
-  return last ? join(gamesDir, last) : null;
+}
+
+/** Откуда брать game.json: последняя прошлая игра, кроме создаваемой, иначе шаблон. */
+function latestGameDir(gamesDir: string, exclude: string): string | null {
+  const last = gameDirs(gamesDir, 'game.json')
+    .filter((name) => name !== exclude)
+    .at(-1);
+  if (last) return join(gamesDir, last);
+  const template = join(gamesDir, TEMPLATE_DIR);
+  return existsSync(join(template, 'game.json')) ? template : null;
 }
 
 /**
@@ -258,13 +274,7 @@ export function currentGameDir(gamesDir: string, date?: string): string {
     }
     return dir;
   }
-  const dirs = existsSync(gamesDir)
-    ? readdirSync(gamesDir, { withFileTypes: true })
-        .filter((d) => d.isDirectory() && existsSync(join(gamesDir, d.name, WORK_MD)))
-        .map((d) => d.name)
-        .sort()
-    : [];
-  const last = dirs.at(-1);
+  const last = gameDirs(gamesDir, WORK_MD).at(-1);
   if (!last) throw new InitError(`В ${gamesDir} нет игр с ${WORK_MD} — сначала ./bgq init`);
   return join(gamesDir, last);
 }

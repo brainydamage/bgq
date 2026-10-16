@@ -1,17 +1,9 @@
 node_modules/
 .DS_Store
 *.log
-
-# результаты ingest — генерируются на старте
-games/*/kps.json
-games/*/report.json
-games/*/geo.json
-# справочники OSM (./bgq osm) — кэш, качается заново
-games/osm_overpass/
-games/osm/
-
-# экспорт Notion: кладётся в games/, ingest init переносит его в games/<дата>/
-games/*.zip
-games/*.md
-games/*/*.zip
 .idea/
+
+# games/ — рабочая папка: экспорты Notion, игры по датам, выгрузка и справочники OSM.
+# В git только шаблон game.json; данные прошлых игр для тестов — в fixtures/<дата>/.
+games/*
+!games/_template/

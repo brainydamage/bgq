@@ -29,8 +29,11 @@ TypeScript/Node для всего, кроме OR-Tools солвера (Python). 
 - `packages/core` — типы, схемы, правило баллов, нормализация id.
 - `packages/ingest` — парсер Notion-markdown, overrides, CLI (`src/cli.ts`).
 - `packages/geo` — справочник адресов OSM (выгрузка Geofabrik + osmium), нечёткий поиск адресов, оценка против эталона, CLI (`src/cli.ts`).
-- `games/osm/` — выгрузка OSM Сербии и справочники городов (кэш, в git не идут); `games/osm_overpass/` — старый справочник через Overpass, для сравнения.
-- `games/<дата>/` — конфиг и данные игры (`game.json`, `overrides.yaml`, экспорт); `kps.json`/`report.json` генерируются, в git не идут.
+- `games/` — рабочая папка, **в git не идёт ничего, кроме `games/_template/game.json`**:
+  - `games/<дата>/` — игра: `game.json`, `overrides.yaml`, экспорт, генерируемые `kps.json`/`report.json`/`geo.json`. Играми считаются только папки-даты.
+  - `games/_template/game.json` — образец конфига; `./bgq init` берёт его, если прошлых игр нет.
+  - `games/osm/` — выгрузка OSM Сербии и справочники городов (кэш).
+- Данные прошлой игры для тестов (в т.ч. её `game.json` и `overrides.yaml`) — в `fixtures/<дата>/`.
 - `fixtures/<дата>/` — эталонные данные прошлых игр для тестов; руками не править.
 
 ## Команды

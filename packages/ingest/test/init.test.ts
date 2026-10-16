@@ -4,6 +4,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -17,6 +18,7 @@ import {
   InitError,
   initGame,
   ORIG_MD,
+  TEMPLATE_DIR,
   todayLocal,
   WORK_MD,
 } from '../src/index.ts';
@@ -167,6 +169,33 @@ describe('initGame', () => {
     expect(r.from).toBeNull();
     expect(r.check).toEqual([]);
     expect(readJson(join(gameDir(), 'game.json'))).toEqual(prepared);
+  });
+});
+
+describe('initGame: шаблон games/_template', () => {
+  const template = () => join(gamesDir, TEMPLATE_DIR);
+
+  it('прошлых игр нет — game.json берётся из шаблона', () => {
+    rmSync(join(gamesDir, '2026-10-10'), { recursive: true });
+    writeGame(template(), { ...fixtureGame, city: 'Нови Сад' });
+    dropExport('e.md', fixtureMd);
+    const r = initGame({ gamesDir, date: DATE });
+    expect(r.from).toBe(template());
+    expect(readJson(join(gameDir(), 'game.json'))).toMatchObject({ id: DATE, city: 'Нови Сад' });
+  });
+
+  it('прошлая игра важнее шаблона, хотя «_template» сортируется после дат', () => {
+    writeGame(template(), { ...fixtureGame, city: 'Нови Сад' });
+    dropExport('e.md', fixtureMd);
+    expect(initGame({ gamesDir, date: DATE }).from).toBe(join(gamesDir, '2026-10-10'));
+  });
+
+  it('osm/ и шаблон не считаются играми для ./bgq parse', () => {
+    writeGame(template(), fixtureGame);
+    mkdirSync(join(gamesDir, 'osm'));
+    writeFileSync(join(template(), WORK_MD), 'x');
+    writeFileSync(join(gamesDir, 'osm', WORK_MD), 'x');
+    expect(() => currentGameDir(gamesDir)).toThrow(/сначала \.\/bgq init/);
   });
 });
 

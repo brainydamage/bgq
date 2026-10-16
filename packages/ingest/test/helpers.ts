@@ -7,9 +7,12 @@ const root = join(import.meta.dirname, '../../..');
 
 export const fixtureMd = readFileSync(join(root, 'fixtures/2026-10-10/notion-export.md'), 'utf8');
 export const fixtureGame = JSON.parse(
-  readFileSync(join(root, 'games/2026-10-10/game.json'), 'utf8'),
+  readFileSync(join(root, 'fixtures/2026-10-10/game.json'), 'utf8'),
 ) as Game;
-export const fixtureOverrides = readFileSync(join(root, 'games/2026-10-10/overrides.yaml'), 'utf8');
+export const fixtureOverrides = readFileSync(
+  join(root, 'fixtures/2026-10-10/overrides.yaml'),
+  'utf8',
+);
 
 export function kpOf(result: Pick<IngestResult, 'kps'>, id: string): Kp {
   const kp = result.kps.find((k) => k.id === id);

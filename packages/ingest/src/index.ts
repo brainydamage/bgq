@@ -10,6 +10,7 @@ export {
   initGame,
   loadGame,
   ORIG_MD,
+  TEMPLATE_DIR,
   todayLocal,
   WORK_MD,
 } from './init.ts';
