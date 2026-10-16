@@ -1,10 +1,12 @@
 import {
+  FINISH_ID,
   type Game,
   isEligible,
   type Kp,
   type Loc,
   type MapFileResults,
   type PointsFile,
+  START_ID,
   type TableIssue,
 } from '@bgq/core';
 import { type GeoResult, haversineM } from '@bgq/geo';
@@ -31,13 +33,33 @@ const iso = (d: Date) => d.toISOString();
 /**
  * Таблица точек. Координаты: ручная правка → кружок на карте → адрес (geo) → нет.
  * Остальные найденные места — в altLocs. Доступность — по пометке в Notion и цвету кружка
- * (override цвета в overrides.yaml важнее карты). Чистая функция.
+ * (override цвета в overrides.yaml важнее карты). Окно работы: overrides → подпись на карте.
+ * Старт/финиш: game.json → отметки СТАРТ/ФИНИШ на карте. Чистая функция.
  */
 export function buildTable(input: TableInput): PointsFile {
   const geo = new Map((input.geo?.results ?? []).filter((g) => g.loc).map((g) => [g.id, g]));
   const map = new Map((input.map?.results ?? []).map((r) => [r.id, r]));
-  const known = new Set(input.kps.map((k) => k.id));
+  const known = new Set([...input.kps.map((k) => k.id), START_ID, FINISH_ID]);
   const issues: TableIssue[] = [];
+
+  const start = input.game.start.loc ?? map.get(START_ID)?.loc;
+  const finish = input.game.finish.loc ?? map.get(FINISH_ID)?.loc;
+  if (!start) {
+    issues.push({
+      severity: 'critical',
+      code: 'no_start',
+      message:
+        'нет точки старта — отметьте СТАРТ на карте (./bgq map, «с») или start.loc в game.json',
+    });
+  }
+  if (!finish) {
+    issues.push({
+      severity: 'critical',
+      code: 'no_finish',
+      message:
+        'нет точки финиша — отметьте ФИНИШ на карте (./bgq map, «ф») или finish.loc в game.json',
+    });
+  }
 
   for (const id of [...map.keys()].filter((id) => !known.has(id)).sort(byId)) {
     issues.push({
@@ -49,7 +71,7 @@ export function buildTable(input: TableInput): PointsFile {
   }
 
   const kps = input.kps.map((kp): Kp => {
-    const { loc: own, altLocs: _altLocs, mapColor: overrideColor, ...base } = kp;
+    const { loc: own, altLocs: _altLocs, mapColor: overrideColor, window: ownWindow, ...base } = kp;
     const m = map.get(kp.id);
     const g = geo.get(kp.id);
     const manual = own?.source === 'manual' ? own : undefined;
@@ -96,8 +118,10 @@ export function buildTable(input: TableInput): PointsFile {
       });
     }
 
+    const window = ownWindow ?? m?.window;
     return {
       ...base,
+      ...(window && { window }),
       ...(mapColor && { mapColor }),
       eligible,
       ...(loc && { loc }),
@@ -118,6 +142,8 @@ export function buildTable(input: TableInput): PointsFile {
       ...(input.geo && { geo: { osmBase: input.geo.osmBase } }),
       ...(input.map && { map: { updatedAt: input.map.updatedAt } }),
     },
+    ...(start && { start }),
+    ...(finish && { finish }),
     kps,
     stats: {
       kps: kps.length,

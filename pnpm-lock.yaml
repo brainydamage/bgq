@@ -211,6 +211,22 @@ importers:
         specifier: 8.20.0
         version: 8.20.0
 
+  packages/export:
+    dependencies:
+      '@bgq/core':
+        specifier: workspace:*
+        version: link:../core
+      '@bgq/geo':
+        specifier: workspace:*
+        version: link:../geo
+      '@bgq/ingest':
+        specifier: workspace:*
+        version: link:../ingest
+    devDependencies:
+      '@bgq/table':
+        specifier: workspace:*
+        version: link:../table
+
   packages/geo:
     dependencies:
       '@bgq/core':

@@ -1,5 +1,5 @@
 // Данные digitizer — общие для сервера (server/) и браузера (src/).
-import type { Game, Kp, MapResult } from '@bgq/core';
+import type { Game, Kp, MapResult, TimeWindow } from '@bgq/core';
 import type { GeoResult } from '@bgq/geo';
 import type { FitReport } from '@bgq/georef';
 
@@ -8,7 +8,7 @@ export type { MapResult };
 
 export type CircleColor = 'red' | 'blue' | 'green';
 
-/** Отметка кружка КП на фото, в пикселях исходного изображения. */
+/** Отметка кружка КП на фото, в пикселях исходного изображения; id — номер КП или start/finish. */
 export interface Mark {
   id: string;
   x: number;
@@ -16,6 +16,8 @@ export interface Mark {
   color: CircleColor | null;
   /** Стрелка «КП за краем карты»: только цвет, не опорная, координаты — по адресу. */
   arrow?: boolean;
+  /** Окно работы, подписанное на карте («с 14 до 18»). */
+  window?: TimeWindow;
 }
 
 export interface PhotoLabels {

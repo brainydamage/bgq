@@ -351,3 +351,29 @@ aside {
 .mark text.arrow {
   fill: var(--muted);
 }
+
+.popover .specials {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.popover .window {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.popover .window input {
+  width: 110px;
+  font-size: 14px;
+  padding: 2px 6px;
+}
+
+.list li.special b {
+  font-weight: 700;
+}
+
+.list li.missing {
+  color: var(--warn);
+}

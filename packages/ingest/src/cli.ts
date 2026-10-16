@@ -32,6 +32,7 @@ const USAGE = [
   '  ./bgq geo     координаты адресных КП по справочнику OSM → geo.json (./bgq geo --help)',
   '  ./bgq map     разметка кружков на фото карты в браузере → map.json',
   '  ./bgq table   kps + geo + map → таблица точек points.json',
+  '  ./bgq kml     points.json → points.kml для Organic Maps (--all — и недоступные)',
   '  ./bgq <notion.md> [--game <games/дата>] [--out <каталог>] [--watch]',
   '',
   'опции init/parse: --date ГГГГ-ММ-ДД (по умолчанию сегодня / последняя игра),',

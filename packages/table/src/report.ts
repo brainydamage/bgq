@@ -1,4 +1,7 @@
-import type { PointsFile } from '@bgq/core';
+import type { PointsFile, TableIssue } from '@bgq/core';
+
+const line = (mark: string, i: TableIssue) =>
+  `  ${mark} ${i.kpId ? `${i.kpId}: ` : ''}${i.message}`;
 
 /** Сводка таблицы точек: цифры, затем все проблемы — их немного, и каждая важна. */
 export function formatTableSummary(t: PointsFile): string {
@@ -8,10 +11,11 @@ export function formatTableSummary(t: PointsFile): string {
   const out = [
     `${s.kps} КП · доступно ${s.eligible} · баллов ${s.points}`,
     `координаты: карта ${s.locFrom.map} · адрес ${s.locFrom.geocode} · вручную ${s.locFrom.manual} · доступных без координат ${s.eligibleWithoutLoc}`,
+    `старт: ${t.start ? 'есть' : 'нет'} · финиш: ${t.finish ? 'есть' : 'нет'}`,
     `✗ критичных: ${critical.length}`,
-    ...critical.map((i) => `  ✗ ${i.kpId ?? ''}: ${i.message}`),
+    ...critical.map((i) => line('✗', i)),
     `△ косметика: ${cosmetic.length}`,
-    ...cosmetic.map((i) => `  △ ${i.kpId ?? ''}: ${i.message}`),
+    ...cosmetic.map((i) => line('△', i)),
   ];
   return out.join('\n');
 }

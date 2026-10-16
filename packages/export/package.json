@@ -1,0 +1,17 @@
+{
+  "name": "@bgq/export",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@bgq/core": "workspace:*",
+    "@bgq/geo": "workspace:*",
+    "@bgq/ingest": "workspace:*"
+  },
+  "devDependencies": {
+    "@bgq/table": "workspace:*"
+  }
+}

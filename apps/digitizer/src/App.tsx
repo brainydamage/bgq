@@ -1,8 +1,9 @@
+import { FINISH_ID, START_ID } from '@bgq/core';
 import type { GeoResult } from '@bgq/geo';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { fetchState, photoUrl, saveMap, uploadPhoto } from './api.ts';
 import { CONTROL_METHODS, computeMap } from './compute.ts';
-import { LabelPopover } from './LabelPopover.tsx';
+import { formatWindow, LabelPopover, type LabelValue } from './LabelPopover.tsx';
 import type { CircleColor, GameState, MapFile, Mark, PhotoLabels } from './model.ts';
 import { type Hint, PhotoView } from './PhotoView.tsx';
 import { FitPanel, KpList } from './Sidebar.tsx';
@@ -13,9 +14,7 @@ interface Popover {
   y: number;
   sx: number;
   sy: number;
-  id: string;
-  color: CircleColor;
-  arrow: boolean;
+  value: LabelValue;
 }
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -81,6 +80,15 @@ export function App() {
     return () => clearTimeout(t);
   }, [photos]);
 
+  // Esc закрывает окно отметки, даже если фокус ушёл из поля ввода.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPopover(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   // Перетаскивание фото в окно → загрузка в games/<дата>/photos/.
   useEffect(() => {
     const over = (e: DragEvent) => {
@@ -131,20 +139,33 @@ export function App() {
   }
 
   const describe = (id: string) => {
+    if (id === START_ID) return 'старт игры';
+    if (id === FINISH_ID) return 'финиш игры';
     const kp = data.kps.find((k) => k.id === id);
     if (!kp) return null;
     const g = geo.get(id);
     const where = g?.method && CONTROL_METHODS.has(g.method) ? ' · ⌂ адрес' : '';
-    return `${kp.title}${kp.eligible ? '' : ' · только вело'}${where}`;
+    const window = kp.window ? ` · окно ${formatWindow(kp.window)} (overrides)` : '';
+    return `${kp.title}${kp.eligible ? '' : ' · только вело'}${where}${window}`;
   };
 
-  const submit = (id: string, color: CircleColor, arrow: boolean) => {
+  const submit = ({ id, color, arrow, window }: LabelValue) => {
     if (!popover) return;
-    setLastColor(color);
+    const special = id === START_ID || id === FINISH_ID;
+    if (!special) setLastColor(color);
     updateActive((p) => {
       // Тот же номер уже есть на фото — переносим отметку (исправление), а не дублируем.
-      const others = p.marks.filter((m) => m.id !== id && !(popover.edit && m.id === popover.id));
-      const mark: Mark = { id, x: popover.x, y: popover.y, color, ...(arrow && { arrow }) };
+      const others = p.marks.filter(
+        (m) => m.id !== id && !(popover.edit && m.id === popover.value.id),
+      );
+      const mark: Mark = {
+        id,
+        x: popover.x,
+        y: popover.y,
+        color: special ? null : color,
+        ...(arrow && { arrow }),
+        ...(window && { window }),
+      };
       return { ...p, marks: [...others, mark] };
     });
     setPopover(null);
@@ -185,7 +206,7 @@ export function App() {
               marks={labels.marks}
               status={fit?.status ?? new Map()}
               hints={hints}
-              selectedId={popover?.edit ? popover.id : null}
+              selectedId={popover?.edit ? popover.value.id : null}
               focus={focus}
               onAdd={(x, y, sx, sy, suggested) =>
                 setPopover({
@@ -194,9 +215,7 @@ export function App() {
                   y,
                   sx,
                   sy,
-                  id: suggested ?? '',
-                  color: lastColor,
-                  arrow: false,
+                  value: { id: suggested ?? '', color: lastColor, arrow: false, window: null },
                 })
               }
               onSelect={(id, sx, sy) => {
@@ -208,9 +227,12 @@ export function App() {
                     y: m.y,
                     sx,
                     sy,
-                    id,
-                    color: m.color ?? lastColor,
-                    arrow: !!m.arrow,
+                    value: {
+                      id,
+                      color: m.color ?? lastColor,
+                      arrow: !!m.arrow,
+                      window: m.window ?? null,
+                    },
                   });
               }}
               onMove={(id, x, y) =>
@@ -225,16 +247,14 @@ export function App() {
                 key={`${popover.x}:${popover.y}`}
                 sx={popover.sx}
                 sy={popover.sy}
-                initialId={popover.id}
-                initialColor={popover.color}
-                initialArrow={popover.arrow}
+                initial={popover.value}
                 edit={popover.edit}
                 describe={describe}
                 onSubmit={submit}
                 onDelete={() => {
                   updateActive((p) => ({
                     ...p,
-                    marks: p.marks.filter((m) => m.id !== popover.id),
+                    marks: p.marks.filter((m) => m.id !== popover.value.id),
                   }));
                   setPopover(null);
                 }}

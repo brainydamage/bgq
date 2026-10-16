@@ -1,5 +1,7 @@
+import { FINISH_ID, START_ID } from '@bgq/core';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { MarkStatus } from './compute.ts';
+import { formatWindow } from './LabelPopover.tsx';
 import type { Mark } from './model.ts';
 
 export interface Hint {
@@ -32,6 +34,9 @@ interface View {
 }
 
 const CLICK_PX = 4;
+
+/** Подпись особых отметок вместо id. */
+const SPECIAL_LABEL: Record<string, string> = { [START_ID]: 'СТАРТ', [FINISH_ID]: 'ФИНИШ' };
 
 /** Обводка — цвет кружка на карте (категория); статус привязки — значком у номера. */
 const FILL: Record<string, string> = { red: '#ef4444', blue: '#2563eb', green: '#16a34a' };
@@ -337,7 +342,8 @@ export function PhotoView(p: Props) {
                     stroke-width={3.5 * k}
                     class={st}
                   >
-                    {m.id}
+                    {SPECIAL_LABEL[m.id] ?? m.id}
+                    {m.window ? ` ⏰${formatWindow(m.window)}` : ''}
                     {BADGE[st]}
                   </text>
                 </g>

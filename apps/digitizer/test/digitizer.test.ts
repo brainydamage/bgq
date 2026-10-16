@@ -8,6 +8,7 @@ import { applyH, localProjection, type Mat3, type XY } from '@bgq/georef';
 import { describe, expect, it } from 'vitest';
 import { createApi } from '../server/api.ts';
 import { computeMap } from '../src/compute.ts';
+import { formatWindow, parseLabelId, parseWindow } from '../src/LabelPopover.tsx';
 import type { MapFile, Mark, PhotoLabels } from '../src/model.ts';
 
 const proj = localProjection(44.97, 19.61);
@@ -48,7 +49,51 @@ function scene() {
   return { geo, marks };
 }
 
+describe('окно отметки: номер и окно работы', () => {
+  it.each([
+    ['25а', '25А'],
+    ['старт', 'start'],
+    ['С', 'start'],
+    ['finish', 'finish'],
+    ['ф', 'finish'],
+    ['abc', null],
+  ])('parseLabelId(%s) = %s', (text, id) => {
+    expect(parseLabelId(text)).toBe(id);
+  });
+
+  it.each([
+    ['14-18', { from: '14:00', to: '18:00' }],
+    ['14–18', { from: '14:00', to: '18:00' }],
+    ['с 14 до 18', { from: '14:00', to: '18:00' }],
+    ['9:30-12', { from: '09:30', to: '12:00' }],
+    ['', null],
+    ['18-14', undefined],
+    ['25-26', undefined],
+    ['после обеда', undefined],
+  ])('parseWindow(%s)', (text, w) => {
+    expect(parseWindow(text)).toEqual(w);
+  });
+
+  it('formatWindow', () => {
+    expect(formatWindow({ from: '14:00', to: '18:30' })).toBe('14–18:30');
+  });
+});
+
 describe('computeMap', () => {
+  it('старт/финиш и окно работы доходят до результата; старт не опорная', () => {
+    const { geo, marks } = scene();
+    const [sx, sy] = applyH(WORLD_TO_PX, [100, 100]) as XY;
+    const extra: Mark[] = [
+      { id: 'start', x: sx, y: sy, color: null },
+      ...marks.map((m) => (m.id === '20' ? { ...m, window: { from: '14:00', to: '18:00' } } : m)),
+    ];
+    const { fits, results } = computeMap([{ file: 'a.jpg', marks: extra, disabled: [] }], geo);
+    const fit = fits[0]?.fit;
+    expect(fit?.ok && fit.report.controls).toBe(7);
+    expect(results.find((r) => r.id === 'start')?.loc?.source).toBe('map');
+    expect(results.find((r) => r.id === '20')?.window).toEqual({ from: '14:00', to: '18:00' });
+  });
+
   it('КП без адреса получает координаты с карты; опорные — только надёжные адреса', () => {
     const { geo, marks } = scene();
     const photos: PhotoLabels[] = [{ file: 'full.jpg', marks, disabled: [] }];

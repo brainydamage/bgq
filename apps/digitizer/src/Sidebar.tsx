@@ -1,4 +1,4 @@
-import type { Kp } from '@bgq/core';
+import { FINISH_ID, type Kp, START_ID, type TimeWindow } from '@bgq/core';
 import type { GeoResult } from '@bgq/geo';
 import { CONTROL_METHODS, type PhotoFit } from './compute.ts';
 import type { MapResult, PhotoLabels } from './model.ts';
@@ -93,7 +93,15 @@ export function KpList(p: KpListProps) {
     for (const m of ph.marks) markedOn.set(m.id, [...(markedOn.get(m.id) ?? []), ph.file]);
   }
   const known = new Set(p.kps.map((k) => k.id));
-  const unknown = [...markedOn.keys()].filter((id) => !known.has(id));
+  const specials = [
+    { id: START_ID, label: 'Старт' },
+    { id: FINISH_ID, label: 'Финиш' },
+  ];
+  const unknown = [...markedOn.keys()].filter(
+    (id) => !known.has(id) && id !== START_ID && id !== FINISH_ID,
+  );
+  const windowOn = new Map<string, TimeWindow>();
+  for (const ph of p.photos) for (const m of ph.marks) if (m.window) windowOn.set(m.id, m.window);
   const eligible = p.kps.filter((k) => k.eligible);
   const done = eligible.filter((k) => p.results.has(k.id)).length;
   const rows = [...p.kps]
@@ -114,6 +122,22 @@ export function KpList(p: KpListProps) {
         только неразмеченные
       </label>
       <ul>
+        {specials.map((s) => {
+          const on = markedOn.get(s.id) ?? [];
+          return (
+            <li
+              key={s.id}
+              class={on.length ? 'special' : 'special missing'}
+              onClick={() => on.length && p.onPick(s.id)}
+              onKeyDown={() => {}}
+              title="Отметьте на фото: клик → «с» (старт) или «ф» (финиш). Нужно для маршрута."
+            >
+              <b>{s.label}</b>
+              <span class="tags">{on.length ? '●' : ''}</span>
+              <span class="title">{on.length ? 'отмечен' : 'не отмечен — нужен для маршрута'}</span>
+            </li>
+          );
+        })}
         {rows.map((k) => {
           const g = p.geo.get(k.id);
           const isControl = !!g?.method && CONTROL_METHODS.has(g.method);
@@ -133,6 +157,7 @@ export function KpList(p: KpListProps) {
                   <span title={on.join(', ')}>●{on.length > 1 ? on.length : ''}</span>
                 )}
                 {!k.eligible && <span title="недоступен нашей категории">вело</span>}
+                {(k.window ?? windowOn.get(k.id)) && <span title="есть окно работы">⏰</span>}
               </span>
               <span class="title">{k.title}</span>
             </li>

@@ -85,6 +85,8 @@ describe('buildTable: правила', () => {
       { id: '50', color: 'green', photo: 'a.jpg', arrow: true },
       { id: '70', loc: loc(44.97, 'map', 0.8), color: 'green', photo: 'a.jpg' },
       { id: '77', loc: loc(44.97, 'map', 0.8), color: 'red', photo: 'a.jpg' },
+      { id: 'start', loc: loc(44.977, 'map', 0.8), color: null, photo: 'a.jpg' },
+      { id: 'finish', loc: loc(44.968, 'map', 0.8), color: null, photo: 'a.jpg' },
     ]),
   });
   const k = (id: string) => t.kps.find((x) => x.id === id);
@@ -137,10 +139,64 @@ describe('buildTable: правила', () => {
     expect(schemaErrors(PointsFile, t)).toEqual([]);
   });
 
-  it('без geo и map — только ручные правки, остальные доступные без координат', () => {
+  it('старт и финиш — с отметок на карте; в KP-список не попадают', () => {
+    expect(t.start).toEqual(loc(44.977, 'map', 0.8));
+    expect(t.finish).toEqual(loc(44.968, 'map', 0.8));
+    expect(t.kps.some((x) => x.id === 'start' || x.id === 'finish')).toBe(false);
+  });
+
+  it('без geo и map — только ручные правки; нет старта и финиша — критично', () => {
     const bare = buildTable({ game, now: NOW, kpsAt: t.sources.kps, kps: [kp('10'), kp('20')] });
     expect(bare.stats.eligibleWithoutLoc).toBe(2);
     expect(bare.sources).toEqual({ kps: t.sources.kps });
+    expect(bare.issues.filter((i) => !i.kpId).map((i) => i.code)).toEqual([
+      'no_start',
+      'no_finish',
+    ]);
+  });
+
+  it('game.json важнее карты для старта и финиша', () => {
+    const manual = loc(45, 'manual', 1);
+    const withGame = buildTable({
+      game: {
+        ...game,
+        start: { ...game.start, loc: manual },
+        finish: { ...game.finish, loc: manual },
+      },
+      now: NOW,
+      kpsAt: t.sources.kps,
+      kps: [],
+      map: mapOf([{ id: 'start', loc: loc(44.977, 'map'), color: null, photo: 'a.jpg' }]),
+    });
+    expect(withGame.start).toEqual(manual);
+    expect(withGame.finish).toEqual(manual);
+  });
+
+  it('окно работы: подпись на карте, но overrides важнее', () => {
+    const w = buildTable({
+      game,
+      now: NOW,
+      kpsAt: t.sources.kps,
+      kps: [kp('99'), kp('120', { window: { from: '15:00', to: '17:00' } })],
+      map: mapOf([
+        {
+          id: '99',
+          loc: loc(44.97, 'map'),
+          color: 'red',
+          photo: 'a.jpg',
+          window: { from: '14:00', to: '18:00' },
+        },
+        {
+          id: '120',
+          loc: loc(44.97, 'map'),
+          color: 'red',
+          photo: 'a.jpg',
+          window: { from: '14:00', to: '18:00' },
+        },
+      ]),
+    });
+    expect(w.kps.find((x) => x.id === '99')?.window).toEqual({ from: '14:00', to: '18:00' });
+    expect(w.kps.find((x) => x.id === '120')?.window).toEqual({ from: '15:00', to: '17:00' });
   });
 
   it('расхождение не сообщаем у неточного адреса (только улица) и у недоступных КП', () => {
@@ -163,7 +219,7 @@ describe('buildTable: правила', () => {
         { id: '71', loc: loc(44.97, 'map', 0.8), color: 'blue', photo: 'a.jpg' },
       ]),
     });
-    expect(far.issues.map((i) => i.kpId)).toEqual(['71']);
+    expect(far.issues.filter((i) => i.kpId).map((i) => i.kpId)).toEqual(['71']);
   });
 });
 
@@ -200,7 +256,11 @@ describe('buildTable на 10.10: Notion + OSM + разметка карты', ()
     expect(t.issues).toContainEqual(
       expect.objectContaining({ code: 'map_geo_mismatch', kpId: '71Б', severity: 'cosmetic' }),
     );
-    expect(t.issues.filter((i) => i.severity === 'critical')).toEqual([]);
+    // Старт и финиш на фото 10.10 ещё не отмечены — честно критично, остального нет.
+    expect(t.issues.filter((i) => i.severity === 'critical').map((i) => i.code)).toEqual([
+      'no_start',
+      'no_finish',
+    ]);
   });
 
   it('окна времени из overrides сохраняются', () => {

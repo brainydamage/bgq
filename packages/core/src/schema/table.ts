@@ -1,9 +1,16 @@
 import Type, { type Static } from 'typebox';
 import { IsoDateTime, KpId, Loc } from './common.ts';
 import { MapColor } from './game.ts';
-import { Kp } from './kp.ts';
+import { Kp, TimeWindow } from './kp.ts';
 
-/** Итог digitizer по КП (map.json → results). Стрелка за краем карты — без координат. */
+/** Особые отметки на карте: старт и финиш игры (id вместо номера КП). */
+export const START_ID = 'start';
+export const FINISH_ID = 'finish';
+
+/**
+ * Итог digitizer по КП (map.json → results); id — номер КП или start/finish.
+ * Стрелка за краем карты — без координат.
+ */
 export const MapResult = Type.Object(
   {
     id: KpId,
@@ -12,6 +19,8 @@ export const MapResult = Type.Object(
     photo: Type.String(),
     /** Стрелка «КП за краем карты»: даёт только цвет (категорию), координаты — по адресу. */
     arrow: Type.Optional(Type.Boolean()),
+    /** Окно работы КП, подписанное на карте («с 14 до 18»). overrides.yaml важнее. */
+    window: Type.Optional(TimeWindow),
   },
   { additionalProperties: false },
 );
@@ -29,7 +38,14 @@ export type MapFileResults = Static<typeof MapFileResults>;
 export const TableIssue = Type.Object(
   {
     severity: Type.Enum(['critical', 'cosmetic']),
-    code: Type.Enum(['no_location', 'unknown_map_id', 'map_geo_mismatch', 'not_on_map']),
+    code: Type.Enum([
+      'no_location',
+      'unknown_map_id',
+      'map_geo_mismatch',
+      'not_on_map',
+      'no_start',
+      'no_finish',
+    ]),
     kpId: Type.Optional(Type.String()),
     message: Type.String(),
   },
@@ -61,6 +77,9 @@ export const PointsFile = Type.Object(
       },
       { additionalProperties: false },
     ),
+    /** Старт и финиш: game.json (вручную) → отметка СТАРТ/ФИНИШ на карте. Нужны маршруту. */
+    start: Type.Optional(Loc),
+    finish: Type.Optional(Loc),
     kps: Type.Array(Kp),
     stats: Type.Object(
       {

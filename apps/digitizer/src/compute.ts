@@ -42,6 +42,7 @@ function statusOf(
 }
 
 const round6 = (x: number) => Math.round(x * 1e6) / 1e6;
+const windowOf = (m: Mark) => (m.window ? { window: m.window } : {});
 const p90 = (f: FitResult) =>
   f.ok ? (f.report.loo?.p90M ?? Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
 
@@ -73,7 +74,7 @@ export function computeMap(
     for (const m of labels.marks) {
       if (m.arrow) {
         offer(
-          { id: m.id, color: m.color, photo: labels.file, arrow: true },
+          { id: m.id, color: m.color, photo: labels.file, arrow: true, ...windowOf(m) },
           1,
           Number.POSITIVE_INFINITY,
         );
@@ -88,7 +89,7 @@ export function computeMap(
         source: 'map' as const,
         confidence: mapConfidence(fit.report),
       };
-      offer({ id: m.id, loc, color: m.color, photo: labels.file }, 0, p90(fit));
+      offer({ id: m.id, loc, color: m.color, photo: labels.file, ...windowOf(m) }, 0, p90(fit));
     }
   });
 
