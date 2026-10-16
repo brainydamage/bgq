@@ -26,9 +26,10 @@ export {
   matchStreet,
   STREET_TIE,
 } from './geocode.ts';
-export { houseKey, streetKey, toAsciiLatin } from './normalize.ts';
+export { citySlug, houseKey, streetKey, toAsciiLatin } from './normalize.ts';
 export {
   bboxAround,
+  cityCenter,
   downloadPbf,
   elementsFromGeojsonSeq,
   GEOFABRIK_SERBIA_URL,

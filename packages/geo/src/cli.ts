@@ -10,7 +10,7 @@ import { currentGameDir, InitError, loadGame } from '@bgq/ingest';
 import { evaluate, parseReference } from './evaluate.ts';
 import { buildIndex, type Gazetteer, serializeGazetteer } from './gazetteer.ts';
 import { geocodeAll } from './geocode.ts';
-import { toAsciiLatin } from './normalize.ts';
+import { citySlug } from './normalize.ts';
 import { downloadPbf, gazetteerFromPbf, OsmiumError } from './osmium.ts';
 import { formatEval, formatGeoSummary } from './report.ts';
 
@@ -116,10 +116,7 @@ async function loadGazetteer(
   o: { rebuild: boolean; redownload: boolean },
 ): Promise<Gazetteer> {
   const osmDir = join(gamesDir, 'osm');
-  const slug = toAsciiLatin(city)
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-  const path = join(osmDir, `${slug}.json`);
+  const path = join(osmDir, `${citySlug(city)}.json`);
   if (existsSync(path) && !o.rebuild && !o.redownload) {
     return JSON.parse(readFileSync(path, 'utf8')) as Gazetteer;
   }

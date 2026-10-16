@@ -155,6 +155,20 @@ export function pbfTimestamp(pbfPath: string): string {
   }
 }
 
+/** Центр города (узел place=city|town|village с таким name) по выгрузке .osm.pbf. */
+export function cityCenter(pbfPath: string, city: string): { lat: number; lon: number } {
+  const dir = mkdtempSync(join(tmpdir(), 'bgq-osmium-'));
+  try {
+    const places = join(dir, 'places.osm.pbf');
+    const geojson = join(dir, 'places.geojsonseq');
+    osmium(['tags-filter', pbfPath, 'n/place=city,town,village', '-o', places, '-O']);
+    osmium(['export', places, '-f', 'geojsonseq', '-a', 'type,id', '-o', geojson, '-O']);
+    return pickPlace(placesFromGeojsonSeq(readFileSync(geojson, 'utf8')), city);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 /** Справочник города из выгрузки .osm.pbf через osmium (экспорт → фильтр → GeoJSON). */
 export function gazetteerFromPbf(
   pbfPath: string,
@@ -164,23 +178,7 @@ export function gazetteerFromPbf(
 ): Gazetteer {
   const dir = mkdtempSync(join(tmpdir(), 'bgq-osmium-'));
   try {
-    const places = join(dir, 'places.osm.pbf');
-    osmium(['tags-filter', pbfPath, 'n/place=city,town,village', '-o', places, '-O']);
-    osmium([
-      'export',
-      places,
-      '-f',
-      'geojsonseq',
-      '-a',
-      'type,id',
-      '-o',
-      join(dir, 'places.geojsonseq'),
-      '-O',
-    ]);
-    const center = pickPlace(
-      placesFromGeojsonSeq(readFileSync(join(dir, 'places.geojsonseq'), 'utf8')),
-      city,
-    );
+    const center = cityCenter(pbfPath, city);
 
     const area = join(dir, 'area.osm.pbf');
     const filtered = join(dir, 'filtered.osm.pbf');

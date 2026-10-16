@@ -253,6 +253,22 @@ importers:
         specifier: 2.9.1
         version: 2.9.1
 
+  packages/routing:
+    dependencies:
+      '@bgq/core':
+        specifier: workspace:*
+        version: link:../core
+      '@bgq/geo':
+        specifier: workspace:*
+        version: link:../geo
+      '@bgq/ingest':
+        specifier: workspace:*
+        version: link:../ingest
+    devDependencies:
+      '@bgq/table':
+        specifier: workspace:*
+        version: link:../table
+
   packages/table:
     dependencies:
       '@bgq/core':

@@ -24,12 +24,14 @@ TypeScript/Node для всего, кроме OR-Tools солвера (Python). 
 - **TypeBox** — схемы в `packages/core/src/schema/`; из них генерируются `schemas/*.v1.schema.json` (draft-07, контракт с Python). После правки схем: `corepack pnpm schemas`, тест проверяет актуальность файлов.
 - pnpm блокирует пакеты моложе политики `minimumReleaseAge` — не обходить исключениями, брать версию постарше.
 - **UI — Preact 10 + Vite** (без `@preact/preset-vite`: JSX через `oxc.jsx.importSource`). Тот же стек планируется для PWA.
+- **Docker Desktop** — OSRM (`ghcr.io/project-osrm/osrm-backend:v26.9.0-debian`) для пешеходной матрицы; без Docker `./bgq matrix` считает по прямой × 1,3. Тест с настоящим OSRM пропускается, если нет Docker или графа.
 - **osmium-tool** (`brew install osmium-tool`) — системная утилита для разбора выгрузки OSM (.osm.pbf); нужна `./bgq osm`. Тест с osmium пропускается, если утилиты нет.
 
 ## Структура
 - `packages/core` — типы, схемы, правило баллов, нормализация id.
 - `packages/ingest` — парсер Notion-markdown, overrides, CLI (`src/cli.ts`).
 - `packages/geo` — справочник адресов OSM (выгрузка Geofabrik + osmium), нечёткий поиск адресов, оценка против эталона, CLI (`src/cli.ts`).
+- `packages/routing` — граф OSRM, матрица расстояний, сборка `Problem` для солвера, CLI (`src/cli.ts`).
 - `packages/export` — экспорт `points.json` → KML для Organic Maps, CLI (`src/cli.ts`).
 - `packages/table` — таблица точек: kps + geo + map + overrides → `points.json` (координаты: ручная правка → карта → адрес), CLI (`src/cli.ts`).
 - `packages/georef` — математика привязки фото карты: гомография, RANSAC, местная поправка, leave-one-out. Без DOM — работает в Node и браузере.
@@ -44,9 +46,11 @@ TypeScript/Node для всего, кроме OR-Tools солвера (Python). 
 ## Команды
 - `./bgq init` — экспорт Notion (.zip/.md), положенный в `games/`, → `games/<сегодня>/` + первый прогон.
 - `./bgq parse` — прогон последней игры с пересчётом при каждом сохранении.
-- `./bgq osm <город>` — накануне игры: выгрузка Сербии с Geofabrik (если её нет; `--refresh` — заново) → справочник `games/osm/<город>.json`.
+- `./bgq osm <город>` — накануне игры: выгрузка Сербии с Geofabrik (если её нет; `--refresh` — заново) → справочник `games/osm/<город>.json` и пешеходный граф OSRM `games/osm/osrm-<город>/` (Docker).
 - `./bgq geo` — координаты адресных КП → `games/<дата>/geo.json` (`--reference <yaml>` — сверка с эталоном).
 - `./bgq map` — digitizer в браузере: фото карты → кружки КП → `games/<дата>/map.json` (автосохранение).
 - `./bgq table` — kps + geo + map → `games/<дата>/points.json` (вход для маршрута); код выхода 1 — доступный КП без координат или нет старта/финиша.
 - `./bgq kml` — `points.json` → `games/<дата>/points.kml` для Organic Maps (`--all` — и недоступные).
+- `./bgq matrix` — расстояния пешком между точками (OSRM; `--haversine` — по прямой) → `matrix.json`.
+- `./bgq problem` — `points.json` + `matrix.json` + `params.json` → `problem.json` для солвера.
 - `corepack pnpm check` — типы + линтер + тесты; `corepack pnpm format` — автоформат.

@@ -56,6 +56,13 @@ export function toAsciiLatin(text: string): string {
   return out.replace(/đ/g, 'dj').normalize('NFD').replace(/\p{M}/gu, '');
 }
 
+/** Имя файла для города: «Сремска Митровица» → «sremska-mitrovica». */
+export function citySlug(city: string): string {
+  return toAsciiLatin(city)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 /** Ключ улицы для сравнения: латиница, без типа улицы и пунктуации. */
 export function streetKey(name: string): string {
   return toAsciiLatin(name)

@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bgq.local/schemas/params.v1.schema.json",
+  "title": "params",
+  "type": "object",
+  "required": [
+    "v",
+    "speedKmh",
+    "serviceMin",
+    "restMin"
+  ],
+  "properties": {
+    "v": {
+      "type": "number",
+      "const": 1
+    },
+    "speedKmh": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "serviceMin": {
+      "type": "object",
+      "required": [
+        "default"
+      ],
+      "properties": {
+        "default": {
+          "type": "number",
+          "minimum": 0
+        },
+        "text": {
+          "type": "number",
+          "minimum": 0
+        },
+        "photo": {
+          "type": "number",
+          "minimum": 0
+        },
+        "drawing": {
+          "type": "number",
+          "minimum": 0
+        },
+        "judge": {
+          "type": "number",
+          "minimum": 0
+        },
+        "video": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "restMin": {
+      "type": "number",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false
+}
