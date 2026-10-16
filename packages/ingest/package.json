@@ -1,0 +1,17 @@
+{
+  "name": "@bgq/ingest",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "bgq-ingest": "./src/cli.ts"
+  },
+  "dependencies": {
+    "@bgq/core": "workspace:*",
+    "fflate": "0.8.3",
+    "yaml": "2.9.1"
+  }
+}

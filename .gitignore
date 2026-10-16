@@ -1,0 +1,13 @@
+node_modules/
+.DS_Store
+*.log
+
+# результаты ingest — генерируются на старте
+games/*/kps.json
+games/*/report.json
+
+# экспорт Notion: кладётся в games/, ingest init переносит его в games/<дата>/
+games/*.zip
+games/*.md
+games/*/*.zip
+.idea/

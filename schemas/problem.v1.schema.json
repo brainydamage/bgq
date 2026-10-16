@@ -1,0 +1,185 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bgq.local/schemas/problem.v1.schema.json",
+  "title": "problem",
+  "type": "object",
+  "required": [
+    "v",
+    "gameId",
+    "t0",
+    "nodes",
+    "matrix",
+    "start",
+    "finish",
+    "deadlineS",
+    "softLateMaxS",
+    "latePenaltyPerMin",
+    "speedKmh"
+  ],
+  "properties": {
+    "v": {
+      "type": "number",
+      "const": 1
+    },
+    "gameId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "t0": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "kpId",
+          "role",
+          "lat",
+          "lon",
+          "prize",
+          "serviceS"
+        ],
+        "properties": {
+          "kpId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(\\d{1,3}[А-ЯЁ]?(#\\d+)?|[a-z][a-z0-9-]*)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role": {
+            "enum": [
+              "start",
+              "finish",
+              "kp"
+            ]
+          },
+          "lat": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "lon": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "prize": {
+            "type": "number",
+            "minimum": 0
+          },
+          "serviceS": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "window": {
+            "type": "array",
+            "additionalItems": false,
+            "items": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "integer",
+                "minimum": 0
+              }
+            ],
+            "minItems": 2
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 2
+    },
+    "matrix": {
+      "type": "object",
+      "required": [
+        "source",
+        "durationS"
+      ],
+      "properties": {
+        "source": {
+          "enum": [
+            "osrm",
+            "ors",
+            "haversine"
+          ]
+        },
+        "durationS": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "start": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "finish": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "deadlineS": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "softLateMaxS": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "latePenaltyPerMin": {
+      "type": "number",
+      "minimum": 0
+    },
+    "rest": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "durationS"
+        ],
+        "properties": {
+          "durationS": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "fromS": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "toS": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "speedKmh": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "warmStart": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(\\d{1,3}[А-ЯЁ]?(#\\d+)?|[a-z][a-z0-9-]*)$"
+      }
+    }
+  },
+  "additionalProperties": false
+}

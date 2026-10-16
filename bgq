@@ -1,0 +1,19 @@
+#!/bin/sh
+# Короткий вход в инструменты: ./bgq init | ./bgq parse | ./bgq --help
+set -e
+root=$(cd "$(dirname "$0")" && pwd)
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "✗ Нет node в PATH — нужен Node 24+ (nvm use)" >&2
+  exit 2
+fi
+if ! node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 24 ? 0 : 1)'; then
+  echo "✗ Нужен Node 24+, сейчас $(node -v) — выполните: nvm use" >&2
+  exit 2
+fi
+if [ ! -d "$root/node_modules" ]; then
+  echo "✗ Зависимости не установлены — выполните: corepack pnpm install" >&2
+  exit 2
+fi
+
+exec node "$root/packages/ingest/src/cli.ts" "$@"

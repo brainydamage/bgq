@@ -1,0 +1,17 @@
+{
+  "id": "2026-10-10",
+  "city": "Сремска Митровица",
+  "date": "2026-10-10",
+  "tz": "Europe/Belgrade",
+  "start": { "time": "10:30" },
+  "finish": {
+    "deadline": "19:30",
+    "graceMin": 30,
+    "penaltyPerMin": 1,
+    "address": "Улица Краља Петра I 15"
+  },
+  "category": "pro",
+  "mode": "foot",
+  "allowedColors": ["red", "blue"],
+  "pointsRule": { "kind": "floor_div", "divisor": 10 }
+}

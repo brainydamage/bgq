@@ -16,5 +16,21 @@
 ## Стек (решено)
 TypeScript/Node для всего, кроме OR-Tools солвера (Python). AWS (Lambda + DynamoDB) через Terraform. OSRM в Docker для матрицы.
 
-## Не решено
-Пакетный менеджер и тулинг монорепо — выбрать на первом шаге.
+Тулинг монорепо (решено 16.10.2026):
+- **pnpm workspaces** через corepack (`packageManager` в `package.json`), без Turbo/Nx.
+- **Node 24** запускает `.ts` напрямую (type stripping): без сборки, `exports` пакетов указывают на `src/*.ts`, импорты с расширением `.ts`, только erasable-синтаксис (без enum/namespace/parameter properties).
+- **TypeScript 7**, один `tsconfig.json` в корне, `tsc -p .` только для проверки типов.
+- **Vitest** — тесты в `packages/*/test/`; **Biome** — линтер и форматтер.
+- **TypeBox** — схемы в `packages/core/src/schema/`; из них генерируются `schemas/*.v1.schema.json` (draft-07, контракт с Python). После правки схем: `corepack pnpm schemas`, тест проверяет актуальность файлов.
+- pnpm блокирует пакеты моложе политики `minimumReleaseAge` — не обходить исключениями, брать версию постарше.
+
+## Структура
+- `packages/core` — типы, схемы, правило баллов, нормализация id.
+- `packages/ingest` — парсер Notion-markdown, overrides, CLI (`src/cli.ts`).
+- `games/<дата>/` — конфиг и данные игры (`game.json`, `overrides.yaml`, экспорт); `kps.json`/`report.json` генерируются, в git не идут.
+- `fixtures/<дата>/` — эталонные данные прошлых игр для тестов; руками не править.
+
+## Команды
+- `./bgq init` — экспорт Notion (.zip/.md), положенный в `games/`, → `games/<сегодня>/` + первый прогон.
+- `./bgq parse` — прогон последней игры с пересчётом при каждом сохранении.
+- `corepack pnpm check` — типы + линтер + тесты; `corepack pnpm format` — автоформат.
