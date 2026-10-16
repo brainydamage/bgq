@@ -1,0 +1,353 @@
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --text: #111827;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --good: #15803d;
+  --warn: #b45309;
+  --bad: #dc2626;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  color: var(--text);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+header nav {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  overflow-x: auto;
+}
+
+button {
+  font: inherit;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  cursor: pointer;
+}
+
+button.active {
+  border-color: var(--text);
+  font-weight: 600;
+}
+
+button.danger {
+  color: var(--bad);
+}
+
+.save {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.save.error {
+  color: var(--bad);
+}
+
+main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #d1d5db;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+
+.canvas img {
+  display: block;
+  user-select: none;
+}
+
+.canvas svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+}
+
+.mark {
+  cursor: move;
+}
+
+.mark text,
+.hint text {
+  font-weight: 700;
+  fill: #111827;
+  stroke: #ffffff;
+  paint-order: stroke;
+}
+
+.hint {
+  pointer-events: none;
+}
+
+.hint circle {
+  fill: none;
+  stroke: #7c3aed;
+}
+
+.hint text {
+  fill: #7c3aed;
+}
+
+.popover {
+  position: absolute;
+  z-index: 10;
+  width: 260px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+}
+
+.popover input {
+  width: 100%;
+  font-size: 18px;
+  padding: 4px 8px;
+}
+
+.popover .colors {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.color {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 4px solid;
+  background: transparent;
+  padding: 0;
+}
+
+.color.red {
+  border-color: #ef4444;
+}
+
+.color.blue {
+  border-color: #2563eb;
+}
+
+.color.green {
+  border-color: #16a34a;
+}
+
+.color.active {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.popover .about {
+  min-height: 18px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.popover .actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+aside {
+  display: flex;
+  flex-direction: column;
+  width: 360px;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.panel {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.panel h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.panel p {
+  margin: 4px 0;
+}
+
+.good {
+  color: var(--good);
+}
+
+.warn {
+  color: var(--warn);
+}
+
+.outlier {
+  color: var(--bad);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.list ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.list li {
+  display: grid;
+  grid-template-columns: 44px 56px 1fr;
+  gap: 6px;
+  padding: 3px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.list li:hover {
+  background: var(--bg);
+}
+
+.list li.here {
+  background: #ecfdf5;
+}
+
+.list li.unknown {
+  color: var(--bad);
+}
+
+.list .title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.list .tags {
+  display: flex;
+  gap: 4px;
+  color: var(--muted);
+}
+
+.empty,
+.fatal {
+  margin: auto;
+  padding: 40px;
+  color: var(--muted);
+}
+
+.dropzone {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(37 99 235 / 0.15);
+  font-size: 22px;
+  border: 4px dashed #2563eb;
+  pointer-events: none;
+}
+
+.mark text.outlier {
+  fill: var(--bad);
+}
+
+.mark text.disabled {
+  fill: var(--muted);
+}
+
+.viewport.panning {
+  cursor: grabbing;
+}
+
+.zoom {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.zoom button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 18px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.15);
+}
+
+.help {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.85);
+  color: var(--muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.popover .arrow {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.mark text.arrow {
+  fill: var(--muted);
+}

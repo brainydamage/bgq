@@ -1,0 +1,16 @@
+{
+  "name": "@bgq/digitizer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@bgq/core": "workspace:*",
+    "@bgq/georef": "workspace:*",
+    "@bgq/ingest": "workspace:*",
+    "preact": "10.29.8"
+  },
+  "devDependencies": {
+    "@bgq/geo": "workspace:*",
+    "vite": "8.3.4"
+  }
+}

@@ -23,14 +23,18 @@ TypeScript/Node для всего, кроме OR-Tools солвера (Python). 
 - **Vitest** — тесты в `packages/*/test/`; **Biome** — линтер и форматтер.
 - **TypeBox** — схемы в `packages/core/src/schema/`; из них генерируются `schemas/*.v1.schema.json` (draft-07, контракт с Python). После правки схем: `corepack pnpm schemas`, тест проверяет актуальность файлов.
 - pnpm блокирует пакеты моложе политики `minimumReleaseAge` — не обходить исключениями, брать версию постарше.
+- **UI — Preact 10 + Vite** (без `@preact/preset-vite`: JSX через `oxc.jsx.importSource`). Тот же стек планируется для PWA.
 - **osmium-tool** (`brew install osmium-tool`) — системная утилита для разбора выгрузки OSM (.osm.pbf); нужна `./bgq osm`. Тест с osmium пропускается, если утилиты нет.
 
 ## Структура
 - `packages/core` — типы, схемы, правило баллов, нормализация id.
 - `packages/ingest` — парсер Notion-markdown, overrides, CLI (`src/cli.ts`).
 - `packages/geo` — справочник адресов OSM (выгрузка Geofabrik + osmium), нечёткий поиск адресов, оценка против эталона, CLI (`src/cli.ts`).
+- `packages/table` — таблица точек: kps + geo + map + overrides → `points.json` (координаты: ручная правка → карта → адрес), CLI (`src/cli.ts`).
+- `packages/georef` — математика привязки фото карты: гомография, RANSAC, местная поправка, leave-one-out. Без DOM — работает в Node и браузере.
+- `apps/digitizer` — веб-приложение разметки кружков на фото карты (Vite + Preact). `server/` — запуск и API к каталогу игры (плагин Vite), `src/` — UI; `src/compute.ts` — расчёт координат (тестируется в Node). Свой `tsconfig.json` (DOM + JSX).
 - `games/` — рабочая папка, **в git не идёт ничего, кроме `games/_template/game.json`**:
-  - `games/<дата>/` — игра: `game.json`, `overrides.yaml`, экспорт, генерируемые `kps.json`/`report.json`/`geo.json`. Играми считаются только папки-даты.
+  - `games/<дата>/` — игра: `game.json`, `overrides.yaml`, экспорт, генерируемые `kps.json`/`report.json`/`geo.json`/`points.json`, фото карты `photos/` и разметка `map.json`. Играми считаются только папки-даты.
   - `games/_template/game.json` — образец конфига; `./bgq init` берёт его, если прошлых игр нет.
   - `games/osm/` — выгрузка OSM Сербии и справочники городов (кэш).
 - Данные прошлой игры для тестов (в т.ч. её `game.json` и `overrides.yaml`) — в `fixtures/<дата>/`.
@@ -41,4 +45,6 @@ TypeScript/Node для всего, кроме OR-Tools солвера (Python). 
 - `./bgq parse` — прогон последней игры с пересчётом при каждом сохранении.
 - `./bgq osm <город>` — накануне игры: выгрузка Сербии с Geofabrik (если её нет; `--refresh` — заново) → справочник `games/osm/<город>.json`.
 - `./bgq geo` — координаты адресных КП → `games/<дата>/geo.json` (`--reference <yaml>` — сверка с эталоном).
+- `./bgq map` — digitizer в браузере: фото карты → кружки КП → `games/<дата>/map.json` (автосохранение).
+- `./bgq table` — kps + geo + map → `games/<дата>/points.json` (вход для маршрута); код выхода 1 — доступный КП без координат.
 - `corepack pnpm check` — типы + линтер + тесты; `corepack pnpm format` — автоформат.

@@ -7,5 +7,6 @@ export * from './schema/game.ts';
 export * from './schema/kp.ts';
 export * from './schema/plan.ts';
 export * from './schema/problem.ts';
+export * from './schema/table.ts';
 export * from './schemas.ts';
 export * from './text.ts';

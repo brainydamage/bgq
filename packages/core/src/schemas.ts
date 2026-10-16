@@ -6,6 +6,7 @@ import { Game } from './schema/game.ts';
 import { Kp } from './schema/kp.ts';
 import { Plan } from './schema/plan.ts';
 import { Problem } from './schema/problem.ts';
+import { MapFileResults, PointsFile } from './schema/table.ts';
 
 export const SCHEMA_VERSION = 1;
 
@@ -17,6 +18,8 @@ export const schemas = {
   problem: Problem,
   plan: Plan,
   event: Event,
+  points: PointsFile,
+  map: MapFileResults,
 } as const satisfies Record<string, TSchema>;
 
 export type SchemaName = keyof typeof schemas;

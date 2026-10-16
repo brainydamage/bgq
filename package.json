@@ -9,12 +9,12 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p .",
+    "typecheck": "tsc -p . && tsc -p apps/digitizer",
     "lint": "biome check .",
     "format": "biome check --write .",
     "schemas": "node packages/core/scripts/gen-schemas.ts",
     "ingest": "node packages/ingest/src/cli.ts",
-    "check": "tsc -p . && biome check . && vitest run"
+    "check": "tsc -p . && tsc -p apps/digitizer && biome check . && vitest run"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
