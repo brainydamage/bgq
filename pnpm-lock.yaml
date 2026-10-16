@@ -189,6 +189,18 @@ importers:
         specifier: 8.20.0
         version: 8.20.0
 
+  packages/geo:
+    dependencies:
+      '@bgq/core':
+        specifier: workspace:*
+        version: link:../core
+      '@bgq/ingest':
+        specifier: workspace:*
+        version: link:../ingest
+      yaml:
+        specifier: 2.9.1
+        version: 2.9.1
+
   packages/ingest:
     dependencies:
       '@bgq/core':

@@ -5,6 +5,10 @@ node_modules/
 # результаты ingest — генерируются на старте
 games/*/kps.json
 games/*/report.json
+games/*/geo.json
+# справочники OSM (./bgq osm) — кэш, качается заново
+games/osm_overpass/
+games/osm/
 
 # экспорт Notion: кладётся в games/, ingest init переносит его в games/<дата>/
 games/*.zip

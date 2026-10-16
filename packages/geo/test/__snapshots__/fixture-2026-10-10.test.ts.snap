@@ -1,0 +1,189 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`geo на 10.10 против эталона > по каждому КП: способ и ошибка (регрессии видны в диффе снапшота) 1`] = `
+[
+  {
+    "errorM": 6,
+    "id": "10",
+    "method": "exact",
+  },
+  {
+    "errorM": 7,
+    "id": "11",
+    "method": "exact",
+  },
+  {
+    "errorM": 27,
+    "id": "15",
+    "method": "exact",
+  },
+  {
+    "errorM": 16,
+    "id": "16",
+    "method": "range",
+  },
+  {
+    "errorM": 20,
+    "id": "18",
+    "method": "exact",
+  },
+  {
+    "errorM": 21,
+    "id": "19",
+    "method": "exact",
+  },
+  {
+    "errorM": 12,
+    "id": "21",
+    "method": "exact",
+  },
+  {
+    "errorM": 28,
+    "id": "27",
+    "method": "exact",
+  },
+  {
+    "errorM": 16,
+    "id": "28",
+    "method": "exact",
+  },
+  {
+    "errorM": 18,
+    "id": "30",
+    "method": "exact",
+  },
+  {
+    "errorM": 27,
+    "id": "32",
+    "method": "exact",
+  },
+  {
+    "errorM": 63,
+    "id": "35",
+    "method": "exact",
+  },
+  {
+    "errorM": 22,
+    "id": "37",
+    "method": "exact",
+  },
+  {
+    "errorM": 13,
+    "id": "38",
+    "method": "exact",
+  },
+  {
+    "errorM": 15,
+    "id": "39",
+    "method": "exact",
+  },
+  {
+    "errorM": 20,
+    "id": "40",
+    "method": "exact",
+  },
+  {
+    "errorM": 24,
+    "id": "44",
+    "method": "exact",
+  },
+  {
+    "errorM": 12,
+    "id": "45",
+    "method": "interpolated",
+  },
+  {
+    "errorM": 9,
+    "id": "47",
+    "method": "exact",
+  },
+  {
+    "errorM": 7,
+    "id": "47А",
+    "method": "exact",
+  },
+  {
+    "errorM": 23,
+    "id": "49",
+    "method": "exact",
+  },
+  {
+    "errorM": 34,
+    "id": "51",
+    "method": "range",
+  },
+  {
+    "errorM": 23,
+    "id": "52",
+    "method": "exact",
+  },
+  {
+    "errorM": 23,
+    "id": "53",
+    "method": "exact",
+  },
+  {
+    "errorM": 20,
+    "id": "54",
+    "method": "exact",
+  },
+  {
+    "errorM": 6,
+    "id": "58",
+    "method": "exact",
+  },
+  {
+    "errorM": 25,
+    "id": "63",
+    "method": "exact",
+  },
+  {
+    "errorM": 8,
+    "id": "64",
+    "method": "exact",
+  },
+  {
+    "errorM": 3,
+    "id": "65",
+    "method": "exact",
+  },
+  {
+    "errorM": 18,
+    "id": "66",
+    "method": "exact",
+  },
+  {
+    "errorM": 36,
+    "id": "71Б",
+    "method": "exact",
+  },
+  {
+    "errorM": 24,
+    "id": "75А",
+    "method": "exact",
+  },
+  {
+    "errorM": 19,
+    "id": "83",
+    "method": "exact",
+  },
+  {
+    "errorM": 28,
+    "id": "120",
+    "method": "exact",
+  },
+]
+`;
+
+exports[`geo на 10.10 против эталона > сводка для терминала 1`] = `
+"35 КП с адресом: точно 31 · диапазон 2 · соседний дом 1 · только улица 1 · не найдено 0
+46 КП без адреса — их разметит digitizer
+  △ 45 «Улица Ратарска 1» → Ратарска 3 (соседний дом, похожесть 1, уверенность 0.5)
+  △ 47А «Улица Сремских Диверсантов 1» → Сремских диверзаната 1 (точно, похожесть 0.8, уверенность 0.76)
+  △ 61 «Батутова улица» → Батутова (только улица, похожесть 1, уверенность 0.2)"
+`;
+
+exports[`geo на 10.10 против эталона > сводка для терминала 2`] = `
+"Эталон: точек 34, найдено 34 · медиана 20 м · 90% ≤ 28 м · ≤30 м: 31 · ≤50 м: 33
+  ✗ 35: 63 м"
+`;

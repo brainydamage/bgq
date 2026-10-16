@@ -1,5 +1,5 @@
 #!/bin/sh
-# Короткий вход в инструменты: ./bgq init | ./bgq parse | ./bgq --help
+# Короткий вход в инструменты: ./bgq init | parse | geo | osm <город> | --help
 set -e
 root=$(cd "$(dirname "$0")" && pwd)
 
@@ -16,4 +16,7 @@ if [ ! -d "$root/node_modules" ]; then
   exit 2
 fi
 
-exec node "$root/packages/ingest/src/cli.ts" "$@"
+case "$1" in
+  geo | osm) exec node "$root/packages/geo/src/cli.ts" "$@" ;;
+  *) exec node "$root/packages/ingest/src/cli.ts" "$@" ;;
+esac

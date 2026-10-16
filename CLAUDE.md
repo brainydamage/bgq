@@ -23,14 +23,19 @@ TypeScript/Node для всего, кроме OR-Tools солвера (Python). 
 - **Vitest** — тесты в `packages/*/test/`; **Biome** — линтер и форматтер.
 - **TypeBox** — схемы в `packages/core/src/schema/`; из них генерируются `schemas/*.v1.schema.json` (draft-07, контракт с Python). После правки схем: `corepack pnpm schemas`, тест проверяет актуальность файлов.
 - pnpm блокирует пакеты моложе политики `minimumReleaseAge` — не обходить исключениями, брать версию постарше.
+- **osmium-tool** (`brew install osmium-tool`) — системная утилита для разбора выгрузки OSM (.osm.pbf); нужна `./bgq osm`. Тест с osmium пропускается, если утилиты нет.
 
 ## Структура
 - `packages/core` — типы, схемы, правило баллов, нормализация id.
 - `packages/ingest` — парсер Notion-markdown, overrides, CLI (`src/cli.ts`).
+- `packages/geo` — справочник адресов OSM (выгрузка Geofabrik + osmium), нечёткий поиск адресов, оценка против эталона, CLI (`src/cli.ts`).
+- `games/osm/` — выгрузка OSM Сербии и справочники городов (кэш, в git не идут); `games/osm_overpass/` — старый справочник через Overpass, для сравнения.
 - `games/<дата>/` — конфиг и данные игры (`game.json`, `overrides.yaml`, экспорт); `kps.json`/`report.json` генерируются, в git не идут.
 - `fixtures/<дата>/` — эталонные данные прошлых игр для тестов; руками не править.
 
 ## Команды
 - `./bgq init` — экспорт Notion (.zip/.md), положенный в `games/`, → `games/<сегодня>/` + первый прогон.
 - `./bgq parse` — прогон последней игры с пересчётом при каждом сохранении.
+- `./bgq osm <город>` — накануне игры: выгрузка Сербии с Geofabrik (если её нет; `--refresh` — заново) → справочник `games/osm/<город>.json`.
+- `./bgq geo` — координаты адресных КП → `games/<дата>/geo.json` (`--reference <yaml>` — сверка с эталоном).
 - `corepack pnpm check` — типы + линтер + тесты; `corepack pnpm format` — автоформат.
