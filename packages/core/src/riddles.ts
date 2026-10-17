@@ -11,29 +11,75 @@ export interface ParsedRiddle {
   text: string;
 }
 
+/** Задание с листка без места (фото, письмо, наклейки) — пункт чек-листа секретаря. */
+export interface ParsedTask {
+  title: string;
+  text: string;
+  /** null — баллы в тексте не нашлись: без баллов задание не сохраняем. */
+  points: number | null;
+  /** Верхняя граница диапазона «7–9 баллов». */
+  pointsMax?: number;
+  /** Сдаётся на финише (письмо, пара наклеек) — напомнить перед финишем. */
+  atFinish: boolean;
+}
+
 export interface ParsedSheets {
   riddles: ParsedRiddle[];
-  /** Заголовки без номера («В мире животных») — не места, в маршрут не идут. */
-  skipped: string[];
+  tasks: ParsedTask[];
 }
 
 /** Строка-заголовок: «**95 Загадка**», «**74** Посмотрите…», «**77А Загадка — см. врезку…**». */
 const HEADER = /^\s*\*\*(.+?)\*\*\s*(.*)$/;
 const NUMBERED = /^(\d{1,3}\s*[A-Za-zА-Яа-яЁё]?)(?=$|[\s.:—–-])\s*[.:—–-]?\s*(.*)$/;
+/** «6 баллов», «7–9 баллов», «5 баллов каждое». */
+const POINTS = /(\d{1,2})(?:\s*[–—-]\s*(\d{1,2}))?\s*балл/i;
+/** Вводная строка списка: «Фото … — **5 баллов каждое**:» — дальше пункты «- …». */
+const EACH = /(\d{1,2})\s*балл\S*\s+кажд/i;
+const BULLET = /^\s*[-*•]\s+(.+?)\s*[;.,]?\s*$/;
+
+function pointsIn(s: string): { points: number; pointsMax?: number } | null {
+  const m = POINTS.exec(s);
+  if (!m?.[1]) return null;
+  const points = Number(m[1]);
+  const max = m[2] ? Number(m[2]) : undefined;
+  return { points, ...(max && max > points && { pointsMax: max }) };
+}
+
+const AT_FINISH = /на\s+финиш/i;
+const clean = (s: string) => s.replace(/\*\*/g, '').trim();
 
 /**
- * Расшифровка листков (ответ ИИ: «**<номер> <название>**», дальше текст) → загадки.
- * Заголовки без номера пропускаются; заголовки разделов «#» и пустые строки по краям — тоже.
+ * Расшифровка листков (ответ ИИ) → загадки и задания.
+ * «**<номер> <название>**» + текст — загадка (место отгадать). «**<название>** — N баллов» —
+ * задание без места (пункт чек-листа); список «… — 5 баллов каждое:» с пунктами «- …» — по
+ * заданию на пункт. Заголовки разделов «#» отделяют блоки.
  */
 export function parseRiddleSheets(md: string): ParsedSheets {
   const riddles: ParsedRiddle[] = [];
-  const skipped: string[] = [];
-  let current: { id: string; title: string; lines: string[] } | null = null;
+  const tasks: ParsedTask[] = [];
+  type Block =
+    | { kind: 'riddle'; id: string; title: string; lines: string[] }
+    | { kind: 'task'; title: string; lines: string[] }
+    | { kind: 'each'; points: number; intro: string };
+  let current: Block | null = null;
+
   const flush = () => {
-    if (current) {
-      riddles.push({ id: current.id, title: current.title, text: trimLines(current.lines) });
-    }
+    const b = current;
     current = null;
+    if (!b || b.kind === 'each') return;
+    const text = trimLines(b.lines);
+    if (b.kind === 'riddle') {
+      riddles.push({ id: b.id, title: b.title, text });
+      return;
+    }
+    const p = pointsIn(b.title) ?? pointsIn(text);
+    tasks.push({
+      title: b.title,
+      text,
+      points: p?.points ?? null,
+      ...(p?.pointsMax && { pointsMax: p.pointsMax }),
+      atFinish: AT_FINISH.test(`${b.title}\n${text}`),
+    });
   };
 
   for (const line of md.split(/\r?\n/)) {
@@ -44,13 +90,20 @@ export function parseRiddleSheets(md: string): ParsedSheets {
       const id = n?.[1] ? parseKpId(n[1].replace(/\s+/g, ''))?.id : undefined;
       if (id) {
         flush();
-        current = { id, title: (n?.[2] ?? '').trim(), lines: h[2] ? [h[2].trim()] : [] };
+        current = {
+          kind: 'riddle',
+          id,
+          title: (n?.[2] ?? '').trim(),
+          lines: h[2] ? [h[2].trim()] : [],
+        };
         continue;
       }
-      // Жирная строка без номера посреди загадки — часть текста; в начале блока — пропуск.
-      if (!current || /^[А-ЯЁA-Z]/.test(head)) {
+      // Жирная строка без номера посреди загадки — часть текста; иначе — задание.
+      if (!current || current.kind === 'each' || /^[А-ЯЁA-Z]/.test(head)) {
         flush();
-        skipped.push(head);
+        // «**Любовь это…** — 6 баллов. Изобразить…» — баллы и текст в хвосте заголовка.
+        const tail = (h[2] ?? '').replace(/^[—–-]\s*/, '');
+        current = { kind: 'task', title: head, lines: tail ? [tail] : [] };
         continue;
       }
     }
@@ -58,10 +111,31 @@ export function parseRiddleSheets(md: string): ParsedSheets {
       flush();
       continue;
     }
+    const each = EACH.exec(line);
+    if (each?.[1]) {
+      flush();
+      const intro = clean(line).replace(/\s*[—–-]?\s*\d{1,2}\s*балл\S*\s+кажд\S*\s*:?\s*$/i, '');
+      current = { kind: 'each', points: Number(each[1]), intro };
+      continue;
+    }
+    if (current?.kind === 'each') {
+      const b = BULLET.exec(line);
+      if (b?.[1]) {
+        tasks.push({
+          title: `Фото: ${b[1]}`,
+          text: current.intro,
+          points: current.points,
+          atFinish: false,
+        });
+        continue;
+      }
+      if (!line.trim()) continue;
+      current = null;
+    }
     if (current) current.lines.push(line);
   }
   flush();
-  return { riddles: dedupe(riddles), skipped };
+  return { riddles: dedupe(riddles), tasks };
 }
 
 function trimLines(lines: string[]): string {
@@ -72,6 +146,64 @@ function trimLines(lines: string[]): string {
 function dedupe(riddles: ParsedRiddle[]): ParsedRiddle[] {
   const seen = new Set<string>();
   return riddles.filter((r) => !seen.has(r.id) && seen.add(r.id));
+}
+
+const TRANSLIT: Record<string, string> = {
+  а: 'a',
+  б: 'b',
+  в: 'v',
+  г: 'g',
+  д: 'd',
+  е: 'e',
+  ё: 'e',
+  ж: 'zh',
+  з: 'z',
+  и: 'i',
+  й: 'y',
+  к: 'k',
+  л: 'l',
+  м: 'm',
+  н: 'n',
+  о: 'o',
+  п: 'p',
+  р: 'r',
+  с: 's',
+  т: 't',
+  у: 'u',
+  ф: 'f',
+  х: 'h',
+  ц: 'c',
+  ч: 'ch',
+  ш: 'sh',
+  щ: 'sch',
+  ъ: '',
+  ы: 'y',
+  ь: '',
+  э: 'e',
+  ю: 'yu',
+  я: 'ya',
+  ђ: 'dj',
+  ј: 'j',
+  љ: 'lj',
+  њ: 'nj',
+  ћ: 'c',
+  џ: 'dz',
+};
+
+/** Номер задания без места: «t-» + название латиницей («Письмо себе» → t-pismo-sebe); занятый — «-2». */
+export function taskId(title: string, taken: ReadonlySet<string> = new Set()): string {
+  const slug = [...title.toLowerCase()]
+    .map((ch) => TRANSLIT[ch] ?? ch)
+    .join('')
+    .normalize('NFKD')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32)
+    .replace(/-+$/, '');
+  const base = `t-${slug || 'task'}`;
+  let id = base;
+  for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
+  return id;
 }
 
 export interface LatLon {

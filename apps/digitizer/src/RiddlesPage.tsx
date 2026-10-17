@@ -10,15 +10,18 @@ import {
   type Riddle,
   type RiddlesFile,
   riddlePoints,
+  type SheetTask,
   START_ID,
 } from '@bgq/core';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import {
   deleteRiddle,
+  deleteTask,
   fetchRiddles,
   fetchState,
   importRiddles,
   putRiddle,
+  putTask,
   sheetUrl,
   uploadSheet,
 } from './api.ts';
@@ -29,7 +32,9 @@ const AI_PROMPT = [
   'Перепиши текст с фото дословно, без пояснений и без своих отгадок.',
   'Каждое задание — отдельным блоком: первая строка «**<номер> <название>**»',
   '(например «**96 Загадка**»), дальше текст как на листке.',
-  'Задания без номера тоже перепиши, первой строкой «**<название>**».',
+  'Задания без номера — первой строкой «**<название>** — <N> баллов» (баллы как на листке).',
+  'Если в списке несколько фото по N баллов каждое — каждое фото отдельным блоком',
+  '«**Фото: <что на фото>** — <N> баллов».',
 ].join(' ');
 
 const POLL_MS = 4000;
@@ -187,6 +192,26 @@ export function RiddlesPage() {
         ))}
       </section>
 
+      <TasksPanel
+        tasks={file.tasks ?? []}
+        onSave={async (id, t) => {
+          try {
+            setFile(await putTask(id, t));
+            setError(null);
+          } catch (e) {
+            setError((e as Error).message);
+          }
+        }}
+        onDelete={async (t) => {
+          if (!confirm(`Удалить задание «${t.title}»?`)) return;
+          try {
+            setFile(await deleteTask(t.id));
+          } catch (e) {
+            setError((e as Error).message);
+          }
+        }}
+      />
+
       <section class="panel">
         <h3>Отгаданные ({solved.length})</h3>
         <table class="solved">
@@ -236,6 +261,9 @@ function ImportBox(p: {
 }) {
   const [text, setText] = useState('');
   const [preview, setPreview] = useState<ParsedSheets | null>(null);
+  /** Баллы, вписанные заданиям, у которых их не нашлось. */
+  const [manual, setManual] = useState<Record<string, number>>({});
+  const missing = (preview?.tasks ?? []).filter((t) => !t.points && !((manual[t.title] ?? 0) >= 1));
   const [report, setReport] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -271,24 +299,30 @@ function ImportBox(p: {
         <button
           type="button"
           disabled={!text.trim()}
-          onClick={() => setPreview(parseRiddleSheets(text))}
+          onClick={() => {
+            setPreview(parseRiddleSheets(text));
+            setManual({});
+          }}
         >
           Разобрать
         </button>
-        {preview && preview.riddles.length > 0 && (
+        {preview && preview.riddles.length + preview.tasks.length > 0 && (
           <button
             type="button"
             class="primary"
+            disabled={missing.length > 0}
+            title={missing.length ? 'впишите баллы заданиям без баллов' : ''}
             onClick={async () => {
               try {
-                const r = await importRiddles(text);
+                const r = await importRiddles(text, manual);
                 p.onImported(r.file);
+                const x = r.result;
                 setReport(
-                  `добавлено ${r.result.added.length}` +
-                    (r.result.filled.length ? `, дополнено ${r.result.filled.length}` : '') +
-                    (r.result.kept.length
-                      ? `, уже были (не трогал): ${r.result.kept.join(', ')}`
-                      : ''),
+                  `загадок добавлено ${x.added.length}` +
+                    (x.filled.length ? `, дополнено ${x.filled.length}` : '') +
+                    (x.kept.length ? `, уже были (не трогал): ${x.kept.join(', ')}` : '') +
+                    ` · заданий добавлено ${x.tasksAdded.length}` +
+                    (x.tasksKept.length ? `, уже были: ${x.tasksKept.length}` : ''),
                 );
                 setText('');
                 setPreview(null);
@@ -297,14 +331,19 @@ function ImportBox(p: {
               }
             }}
           >
-            Сохранить {preview.riddles.length}
+            Сохранить: загадок {preview.riddles.length}, заданий {preview.tasks.length}
           </button>
         )}
         {report && <span class="good">✓ {report}</span>}
       </div>
       {preview && (
         <div class="preview">
-          {!preview.riddles.length && <p class="bad">Не нашёл ни одного «**номер название**».</p>}
+          {!preview.riddles.length && !preview.tasks.length && (
+            <p class="bad">
+              Не нашёл ни одного «**номер название**» или «**название** — N баллов».
+            </p>
+          )}
+          {preview.riddles.length > 0 && <b>Загадки (место отгадать)</b>}
           <ul>
             {preview.riddles.map((r) => (
               <li key={r.id}>
@@ -314,8 +353,39 @@ function ImportBox(p: {
               </li>
             ))}
           </ul>
-          {preview.skipped.length > 0 && (
-            <p class="muted">Без номера — не места, пропущены: {preview.skipped.join(', ')}</p>
+          {preview.tasks.length > 0 && <b>Задания без места (чек-лист в поле)</b>}
+          <ul>
+            {preview.tasks.map((t) => (
+              <li key={t.title}>
+                {t.points ? (
+                  <span>
+                    {t.points}
+                    {t.pointsMax ? `–${t.pointsMax}` : ''} б
+                  </span>
+                ) : (
+                  <span class="bad">
+                    баллы?{' '}
+                    <input
+                      type="number"
+                      min={1}
+                      class="points"
+                      value={manual[t.title] ?? ''}
+                      onInput={(e) =>
+                        setManual({ ...manual, [t.title]: Number(e.currentTarget.value) })
+                      }
+                    />
+                  </span>
+                )}{' '}
+                · {t.title}
+                {t.atFinish && <span class="warn"> · сдать на финише</span>}
+              </li>
+            ))}
+          </ul>
+          {missing.length > 0 && (
+            <p class="bad">
+              Без баллов задание делать незачем — впишите баллы ({missing.length}) или уберите его
+              из текста.
+            </p>
           )}
         </div>
       )}
@@ -534,6 +604,139 @@ function RiddleCard(p: {
           )}
         </div>
       </div>
+    </article>
+  );
+}
+
+/** Задания без места — чек-лист секретаря в поле; здесь только завести и поправить. */
+function TasksPanel(p: {
+  tasks: SheetTask[];
+  onSave: (id: string, t: SheetTask) => void;
+  onDelete: (t: SheetTask) => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [points, setPoints] = useState('');
+  const sorted = [...p.tasks].sort((a, b) => a.title.localeCompare(b.title, 'ru'));
+  const total = p.tasks.reduce((s, t) => s + t.points, 0);
+  const atFinish = p.tasks.filter((t) => t.atFinish).length;
+  const n = Number(points);
+  return (
+    <section class="panel">
+      <h3>
+        Задания без места ({p.tasks.length} · {total} б)
+        {atFinish > 0 && <span class="warn">сдать на финише: {atFinish}</span>}
+      </h3>
+      <p class="muted">
+        Фото, письмо, наклейки — в маршрут не идут; в поле секретарь отмечает их галочкой. Задание с
+        известным местом заводите загадкой с однозначным номером: «5А» — 5 баллов.
+      </p>
+      <div class="row">
+        <input
+          placeholder="название, «Фото у дерева»"
+          value={title}
+          onInput={(e) => setTitle(e.currentTarget.value)}
+        />
+        <input
+          type="number"
+          min={1}
+          class="points"
+          placeholder="баллы"
+          value={points}
+          onInput={(e) => setPoints(e.currentTarget.value)}
+        />
+        <button
+          type="button"
+          disabled={!title.trim() || !(Number.isInteger(n) && n >= 1)}
+          onClick={() => {
+            p.onSave('', {
+              id: 't-new',
+              title: title.trim(),
+              text: '',
+              points: n,
+              atFinish: false,
+              notes: '',
+              updatedAt: new Date().toISOString(),
+            });
+            setTitle('');
+            setPoints('');
+          }}
+        >
+          + задание
+        </button>
+        {title.trim() && !(n >= 1) && <span class="bad">без баллов задание делать незачем</span>}
+      </div>
+      {sorted.map((t) => (
+        <TaskCard
+          key={t.id}
+          task={t}
+          onSave={(next) => p.onSave(t.id, next)}
+          onDelete={() => p.onDelete(t)}
+        />
+      ))}
+    </section>
+  );
+}
+
+function TaskCard(p: { task: SheetTask; onSave: (t: SheetTask) => void; onDelete: () => void }) {
+  const [draft, setDraft] = useState(p.task);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!timer.current) setDraft(p.task);
+  }, [p.task.updatedAt]);
+  const edit = (next: SheetTask) => {
+    setDraft(next);
+    if (timer.current) clearTimeout(timer.current);
+    if (!(Number.isInteger(next.points) && next.points >= 1) || !next.title.trim()) return;
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      p.onSave(next);
+    }, SAVE_DELAY_MS);
+  };
+  return (
+    <article class="riddle task">
+      <div class="head">
+        <input
+          class="title"
+          value={draft.title}
+          onInput={(e) => edit({ ...draft, title: e.currentTarget.value })}
+        />
+        <input
+          type="number"
+          min={1}
+          class="points"
+          value={draft.points}
+          onInput={(e) => edit({ ...draft, points: Number(e.currentTarget.value) })}
+        />
+        <span>{draft.pointsMax ? `–${draft.pointsMax} б` : 'б'}</span>
+        <label class="inline">
+          <input
+            type="checkbox"
+            checked={draft.atFinish}
+            onChange={(e) => edit({ ...draft, atFinish: e.currentTarget.checked })}
+          />{' '}
+          сдать на финише
+        </label>
+        <button type="button" class="danger" onClick={p.onDelete}>
+          удалить
+        </button>
+      </div>
+      {!(draft.points >= 1) && <p class="bad">без баллов задание делать незачем — впишите баллы</p>}
+      <label>
+        Текст
+        <textarea
+          rows={Math.min(5, Math.max(1, draft.text.split('\n').length))}
+          value={draft.text}
+          onInput={(e) => edit({ ...draft, text: e.currentTarget.value })}
+        />
+      </label>
+      <label>
+        Заметки
+        <textarea
+          rows={1}
+          value={draft.notes}
+          onInput={(e) => edit({ ...draft, notes: e.currentTarget.value })}
+        />
+      </label>
     </article>
   );
 }

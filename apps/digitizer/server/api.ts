@@ -175,12 +175,23 @@ export function createApi(gameDir: string) {
     const rest = url.pathname.slice('/riddles'.length);
     if (req.method === 'GET' && rest === '') return sendJson(res, 200, riddles.read());
     if (req.method === 'POST' && rest === '/import') {
-      const { text } = JSON.parse((await readBody(req, 1024 * 1024)).toString('utf8')) as {
+      const { text, taskPoints } = JSON.parse(
+        (await readBody(req, 1024 * 1024)).toString('utf8'),
+      ) as {
         text?: string;
+        taskPoints?: Record<string, number>;
       };
       const parsed = parseRiddleSheets(text ?? '');
-      const { file, result } = riddles.importParsed(parsed.riddles);
-      return sendJson(res, 200, { file, result, skipped: parsed.skipped });
+      const { file, result } = riddles.importParsed(parsed.riddles, parsed.tasks, taskPoints);
+      return sendJson(res, 200, { file, result });
+    }
+    if (rest === '/tasks' || rest.startsWith('/tasks/')) {
+      const id = decodeURIComponent(rest.slice('/tasks/'.length));
+      if (req.method === 'PUT') {
+        const body: unknown = JSON.parse((await readBody(req, 1024 * 1024)).toString('utf8'));
+        return sendJson(res, 200, riddles.upsertTask(body, id || undefined));
+      }
+      if (req.method === 'DELETE' && id) return sendJson(res, 200, riddles.removeTask(id));
     }
     if (req.method === 'POST' && rest === '/sheets') {
       const { file } = await upload(req, url.searchParams.get('name') ?? '', sheetsDir);

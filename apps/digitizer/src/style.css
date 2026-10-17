@@ -551,3 +551,23 @@ aside {
   padding: 4px 8px;
   border-top: 1px solid var(--line);
 }
+
+.riddles-page input.points {
+  width: 70px;
+}
+
+.riddle.task {
+  border-left-color: var(--line);
+}
+
+.riddle label.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.riddle label.inline input {
+  width: auto;
+}

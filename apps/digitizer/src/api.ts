@@ -1,4 +1,4 @@
-import type { Riddle, RiddlesFile } from '@bgq/core';
+import type { Riddle, RiddlesFile, SheetTask } from '@bgq/core';
 import type { GameState, MapFile } from './model.ts';
 
 async function json<T>(res: Response): Promise<T> {
@@ -54,17 +54,44 @@ export async function deleteRiddle(id: string): Promise<RiddlesFile> {
 
 export interface ImportReply {
   file: RiddlesFile;
-  result: { added: string[]; filled: string[]; kept: string[] };
-  skipped: string[];
+  result: {
+    added: string[];
+    filled: string[];
+    kept: string[];
+    tasksAdded: string[];
+    tasksKept: string[];
+    needPoints: string[];
+  };
 }
 
-export async function importRiddles(text: string): Promise<ImportReply> {
+/** Расшифровка листков; taskPoints — баллы, вписанные вручную заданиям, у которых их не нашлось. */
+export async function importRiddles(
+  text: string,
+  taskPoints: Record<string, number> = {},
+): Promise<ImportReply> {
   return json<ImportReply>(
     await fetch('/api/riddles/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, taskPoints }),
     }),
+  );
+}
+
+/** Задание без места: id — пустой для нового. */
+export async function putTask(id: string, task: SheetTask): Promise<RiddlesFile> {
+  return json<RiddlesFile>(
+    await fetch(`/api/riddles/tasks/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(task),
+    }),
+  );
+}
+
+export async function deleteTask(id: string): Promise<RiddlesFile> {
+  return json<RiddlesFile>(
+    await fetch(`/api/riddles/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   );
 }
 

@@ -5,10 +5,13 @@ import { join } from 'node:path';
 import {
   normalizeKpId,
   type ParsedRiddle,
+  type ParsedTask,
   Riddle,
   type RiddlesFile,
   RiddlesFile as RiddlesSchema,
+  SheetTask,
   schemaErrors,
+  taskId,
 } from '@bgq/core';
 
 export class RiddleError extends Error {}
@@ -19,13 +22,18 @@ export interface ImportResult {
   filled: string[];
   /** Уже были с текстом — не трогали (заметки и отгадки целы). */
   kept: string[];
+  /** Задания без места: добавлены (id) и уже были (по названию). */
+  tasksAdded: string[];
+  tasksKept: string[];
+  /** Задания без баллов — не сохранены: баллы надо вписать. */
+  needPoints: string[];
 }
 
 export function createRiddleStore(gameDir: string, gameId: string) {
   const path = join(gameDir, 'riddles.json');
 
   function read(): RiddlesFile {
-    if (!existsSync(path)) return { v: 1, gameId, sheets: [], riddles: [] };
+    if (!existsSync(path)) return { v: 1, gameId, sheets: [], riddles: [], tasks: [] };
     const data: unknown = JSON.parse(readFileSync(path, 'utf8'));
     const errors = schemaErrors(RiddlesSchema, data);
     if (errors.length) throw new RiddleError(`riddles.json: ${errors.join('; ')}`);
@@ -59,16 +67,80 @@ export function createRiddleStore(gameDir: string, gameId: string) {
     return write({ ...file, riddles: [...rest, riddle] });
   }
 
+  /** Задание без места: добавить или заменить целиком; баллы обязательны. */
+  function upsertTask(input: unknown, oldId?: string): RiddlesFile {
+    const t = input as SheetTask;
+    const file = read();
+    const tasks = file.tasks ?? [];
+    const others = new Set(tasks.filter((x) => x.id !== oldId).map((x) => x.id));
+    const id =
+      oldId && tasks.some((x) => x.id === oldId) ? oldId : taskId(String(t?.title ?? ''), others);
+    const task: SheetTask = { ...t, id, updatedAt: now() };
+    const errors = schemaErrors(SheetTask, task);
+    if (errors.length) {
+      const noPoints = !(Number.isInteger(task.points) && task.points >= 1);
+      throw new RiddleError(
+        noPoints ? 'у задания должны быть баллы (целое ≥ 1)' : errors.join('; '),
+      );
+    }
+    return write({ ...file, tasks: [...tasks.filter((x) => x.id !== id), task] });
+  }
+
+  function removeTask(id: string): RiddlesFile {
+    const file = read();
+    return write({ ...file, tasks: (file.tasks ?? []).filter((t) => t.id !== id) });
+  }
+
   function remove(id: string): RiddlesFile {
     const file = read();
     return write({ ...file, riddles: file.riddles.filter((r) => r.id !== id) });
   }
 
-  /** Загадки из расшифровки листков: новые — добавить, пустые — дополнить, остальные не трогать. */
-  function importParsed(parsed: ParsedRiddle[]): { file: RiddlesFile; result: ImportResult } {
+  /**
+   * Загадки и задания из расшифровки листков: новые — добавить, пустые загадки — дополнить,
+   * остальное не трогать. Задание — по названию; без баллов (и без taskPoints) — не сохраняем.
+   */
+  function importParsed(
+    parsed: ParsedRiddle[],
+    parsedTasks: ParsedTask[] = [],
+    taskPoints: Record<string, number> = {},
+  ): { file: RiddlesFile; result: ImportResult } {
     const file = read();
     const byId = new Map(file.riddles.map((r) => [r.id, r]));
-    const result: ImportResult = { added: [], filled: [], kept: [] };
+    const result: ImportResult = {
+      added: [],
+      filled: [],
+      kept: [],
+      tasksAdded: [],
+      tasksKept: [],
+      needPoints: [],
+    };
+    const tasks = [...(file.tasks ?? [])];
+    const titles = new Set(tasks.map((t) => t.title.trim().toLowerCase()));
+    for (const t of parsedTasks) {
+      if (titles.has(t.title.trim().toLowerCase())) {
+        result.tasksKept.push(t.title);
+        continue;
+      }
+      const points = taskPoints[t.title] ?? t.points;
+      if (!points || points < 1) {
+        result.needPoints.push(t.title);
+        continue;
+      }
+      const id = taskId(t.title, new Set(tasks.map((x) => x.id)));
+      tasks.push({
+        id,
+        title: t.title,
+        text: t.text,
+        points,
+        ...(t.pointsMax && t.pointsMax > points && { pointsMax: t.pointsMax }),
+        atFinish: t.atFinish,
+        notes: '',
+        updatedAt: now(),
+      });
+      titles.add(t.title.trim().toLowerCase());
+      result.tasksAdded.push(id);
+    }
     for (const p of parsed) {
       const id = normalizeKpId(p.id);
       if (!id) continue;
@@ -81,7 +153,7 @@ export function createRiddleStore(gameDir: string, gameId: string) {
         result.filled.push(id);
       } else result.kept.push(id);
     }
-    return { file: write({ ...file, riddles: [...byId.values()] }), result };
+    return { file: write({ ...file, riddles: [...byId.values()], tasks }), result };
   }
 
   function addSheet(name: string): RiddlesFile {
@@ -89,5 +161,5 @@ export function createRiddleStore(gameDir: string, gameId: string) {
     return write({ ...file, sheets: [...new Set([...file.sheets, name])] });
   }
 
-  return { path, read, upsert, remove, importParsed, addSheet };
+  return { path, read, upsert, remove, upsertTask, removeTask, importParsed, addSheet };
 }

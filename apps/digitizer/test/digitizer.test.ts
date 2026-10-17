@@ -288,21 +288,22 @@ describe('API загадок', () => {
     return dir;
   }
   const sheet =
-    '**96 Загадка**\nМежду ними ровно пять.\n\n**Письмо себе**\n50–100 слов.\n\n**74** Львы.';
+    '**96 Загадка**\nМежду ними ровно пять.\n\n**Письмо себе** — 7–9 баллов\nСдать на финише.\n\n**74** Львы.';
   type File = { riddles: { id: string; title: string; text: string; notes: string }[] };
 
-  it('импорт расшифровки: новые добавлены, без номера пропущены, повтор не затирает заметки', async () => {
+  it('импорт расшифровки: загадки и задания, повтор не затирает заметки', async () => {
     const dir = gameDir();
     const api = createApi(dir);
     const first = await call(api, 'POST', '/riddles/import', JSON.stringify({ text: sheet }));
     expect(first.json).toMatchObject({
-      result: { added: ['96', '74'], filled: [], kept: [] },
-      skipped: ['Письмо себе'],
+      result: { added: ['96', '74'], filled: [], kept: [], tasksAdded: ['t-pismo-sebe'] },
     });
     const r96 = (first.json as { file: File }).file.riddles.find((r) => r.id === '96');
     await call(api, 'PUT', '/riddles/96', JSON.stringify({ ...r96, notes: 'крест у церкви?' }));
     const again = await call(api, 'POST', '/riddles/import', JSON.stringify({ text: sheet }));
-    expect(again.json).toMatchObject({ result: { added: [], kept: ['96', '74'] } });
+    expect(again.json).toMatchObject({
+      result: { added: [], kept: ['96', '74'], tasksAdded: [], tasksKept: ['Письмо себе'] },
+    });
     const saved = JSON.parse(readFileSync(join(dir, 'riddles.json'), 'utf8')) as File;
     expect(saved.riddles.map((r) => r.id)).toEqual(['74', '96']);
     expect(saved.riddles.find((r) => r.id === '96')?.notes).toBe('крест у церкви?');
@@ -349,6 +350,34 @@ describe('API загадок', () => {
     expect((renamed.json as File).riddles.map((r) => r.id)).toEqual(['75А', '96']);
     const left = await call(api, 'DELETE', '/riddles/75%D0%90');
     expect((left.json as File).riddles.map((r) => r.id)).toEqual(['96']);
+  });
+
+  it('задания без баллов не сохраняются, пока баллы не вписаны', async () => {
+    const api = createApi(gameDir());
+    const text = '**Секретное задание**\nСпросите у судьи.\n\n**Фото: киоск** — 5 баллов';
+    const r = await call(api, 'POST', '/riddles/import', JSON.stringify({ text }));
+    expect(r.json).toMatchObject({
+      result: { tasksAdded: ['t-foto-kiosk'], needPoints: ['Секретное задание'] },
+    });
+    const fixed = await call(
+      api,
+      'POST',
+      '/riddles/import',
+      JSON.stringify({ text, taskPoints: { 'Секретное задание': 4 } }),
+    );
+    expect(fixed.json).toMatchObject({ result: { tasksAdded: ['t-sekretnoe-zadanie'] } });
+    const task = { title: 'Без баллов', text: '', points: 0, atFinish: false, notes: '' };
+    const bad = await call(api, 'PUT', '/riddles/tasks/', JSON.stringify(task));
+    expect(bad.status).toBe(400);
+    expect(bad.json).toEqual({ error: 'у задания должны быть баллы (целое ≥ 1)' });
+    const ok = await call(api, 'PUT', '/riddles/tasks/', JSON.stringify({ ...task, points: 3 }));
+    expect((ok.json as { tasks: { id: string }[] }).tasks.map((t) => t.id)).toContain(
+      't-bez-ballov',
+    );
+    const gone = await call(api, 'DELETE', '/riddles/tasks/t-foto-kiosk');
+    expect((gone.json as { tasks: { id: string }[] }).tasks.map((t) => t.id)).not.toContain(
+      't-foto-kiosk',
+    );
   });
 
   it('фото листков — в riddles/, не в фото карты', async () => {

@@ -33,6 +33,28 @@ export const Riddle = Type.Object(
 );
 export type Riddle = Static<typeof Riddle>;
 
+/**
+ * Задание с листка без места (фото у дерева, письмо, наклейки): пункт чек-листа секретаря.
+ * Баллы обязательны — задание без баллов не делаем. Сделано или нет — события на телефоне.
+ */
+export const SheetTask = Type.Object(
+  {
+    /** «t-pismo-sebe» — из названия, латиницей. */
+    id: KpId,
+    title: Type.String({ minLength: 1 }),
+    text: Type.String(),
+    points: Type.Integer({ minimum: 1 }),
+    /** «7–9 баллов» (жюри) — верхняя граница. */
+    pointsMax: Type.Optional(Type.Integer({ minimum: 1 })),
+    /** Сдать на финише (письмо, пара наклеек) — напомнить перед финишем. */
+    atFinish: Type.Boolean(),
+    notes: Type.String(),
+    updatedAt: IsoDateTime,
+  },
+  { additionalProperties: false },
+);
+export type SheetTask = Static<typeof SheetTask>;
+
 /** games/<дата>/riddles.json — загадки игры; правится со страницы «Загадки» (./bgq map). */
 export const RiddlesFile = Type.Object(
   {
@@ -41,6 +63,8 @@ export const RiddlesFile = Type.Object(
     /** Фото листков (games/<дата>/riddles/) — оригинал на случай ошибок расшифровки. */
     sheets: Type.Array(Type.String()),
     riddles: Type.Array(Riddle),
+    /** Задания без места — чек-лист; нет — пустой (файлы до 18.10). */
+    tasks: Type.Optional(Type.Array(SheetTask)),
   },
   { additionalProperties: false },
 );

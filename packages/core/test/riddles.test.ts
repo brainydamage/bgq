@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseCoords, parseRiddleSheets, type Riddle, riddleToKp } from '../src/index.ts';
+import { parseCoords, parseRiddleSheets, type Riddle, riddleToKp, taskId } from '../src/index.ts';
 
 const sheets = readFileSync(
   join(import.meta.dirname, '../../../fixtures/2026-10-10/sheets.md'),
@@ -10,10 +10,10 @@ const sheets = readFileSync(
 const center = { lat: 44.97, lon: 19.61 };
 
 describe('расшифровка листков → загадки', () => {
-  const { riddles, skipped } = parseRiddleSheets(sheets);
+  const { riddles, tasks } = parseRiddleSheets(sheets);
   const byId = new Map(riddles.map((r) => [r.id, r]));
 
-  it('10.10: 11 загадок, 4 задания и 2 фотозагадки с номером; без номера — пропущены', () => {
+  it('10.10: 11 загадок, 4 задания и 2 фотозагадки с номером', () => {
     expect(riddles.map((r) => r.id)).toEqual([
       '95',
       '96',
@@ -33,7 +33,38 @@ describe('расшифровка листков → загадки', () => {
       '67',
       '87',
     ]);
-    expect(skipped).toEqual(['В мире животных', 'Письмо себе', 'Любовь это…', 'Моя чесма']);
+  });
+
+  it('задания без номера — с баллами из текста; список «5 баллов каждое» — по заданию на фото', () => {
+    expect(tasks.map((t) => [t.title, t.points, t.pointsMax ?? null, t.atFinish])).toEqual([
+      ['В мире животных', 6, null, true],
+      ['Письмо себе', 7, 9, true],
+      ['Фото: киоска K67', 5, null, false],
+      ['Фото: цветущего в октябре дерева', 5, null, false],
+      ['Фото: магазина конины', 5, null, false],
+      ['Фото: крупного рекламного плаката Русской партии', 5, null, false],
+      ['Фото: виноградной лозы (как часть городской среды, не товар)', 5, null, false],
+      ['Фото: на судне на воде (дебаркадер не считается)', 5, null, false],
+      ['Любовь это…', 6, null, false],
+      ['Моя чесма', 7, null, false],
+    ]);
+    expect(tasks[2]?.text).toBe('Фото всей команды на фоне, бейдж на переднем плане');
+  });
+
+  it('формат из запроса для ИИ: «**Фото: …** — 5 баллов»; без баллов — points: null', () => {
+    const r = parseRiddleSheets(
+      '**Фото: киоск K67** — 5 баллов\n\n**Секретное задание**\nСпросите у судьи.',
+    );
+    expect(r.tasks).toEqual([
+      { title: 'Фото: киоск K67', text: '5 баллов', points: 5, atFinish: false },
+      { title: 'Секретное задание', text: 'Спросите у судьи.', points: null, atFinish: false },
+    ]);
+  });
+
+  it('номер задания — латиницей из названия, занятый — с суффиксом', () => {
+    expect(taskId('Письмо себе')).toBe('t-pismo-sebe');
+    expect(taskId('Фото: киоска K67')).toBe('t-foto-kioska-k67');
+    expect(taskId('Письмо себе', new Set(['t-pismo-sebe']))).toBe('t-pismo-sebe-2');
   });
 
   it('название — после номера, текст — до следующего заголовка', () => {
@@ -57,6 +88,7 @@ describe('расшифровка листков → загадки', () => {
   it('ответ ИИ: лишние пробелы, латинская буква, повтор блока', () => {
     const r = parseRiddleSheets('Вот текст:\n\n**25a Загадка**\nТекст\n\n**25А Загадка**\nПовтор');
     expect(r.riddles).toEqual([{ id: '25А', title: 'Загадка', text: 'Текст' }]);
+    expect(r.tasks).toEqual([]);
   });
 });
 
