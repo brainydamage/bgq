@@ -82,7 +82,7 @@ export function parseRiddleSheets(md: string): ParsedSheets {
     });
   };
 
-  for (const line of md.split(/\r?\n/)) {
+  for (const line of (md.includes('**') ? md : markPlainHeaders(md)).split(/\r?\n/)) {
     const h = HEADER.exec(line);
     if (h?.[1]) {
       const head = h[1].trim();
@@ -136,6 +136,41 @@ export function parseRiddleSheets(md: string): ParsedSheets {
   }
   flush();
   return { riddles: dedupe(riddles), tasks };
+}
+
+const MONTH = /^(январ|феврал|март|апрел|ма[яй]|июн|июл|август|сентябр|октябр|ноябр|декабр)/i;
+/** «92 См. схему», «74 Посмотрите видео…», «77А Загадка — см. врезку…». */
+const PLAIN_RIDDLE = /^(\d{1,3}[А-ЯЁA-Za-zа-яё]?)(?:\s+(.*))?$/;
+/** «Моя чесма — 7 баллов. Фото команды…», «Фото: киоск K67 — 5 баллов». */
+const PLAIN_TASK = /^(.{2,80}?)\s+[—–-]\s+(\d{1,2}(?:\s*[–—-]\s*\d{1,2})?\s*балл.*)$/i;
+
+/**
+ * Текст без разметки (скопирован из чата как оформленный, звёздочки потерялись) →
+ * заголовки «**…**» там, где их видно по форме: строка в начале абзаца, начинающаяся
+ * с номера, — загадка; «<название> — N баллов» — задание. Даты («10 октября 2026»)
+ * и «5 баллов каждое» заголовками не считаются.
+ */
+export function markPlainHeaders(text: string): string {
+  const out: string[] = [];
+  let prevBlank = true;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    let mark: string | null = null;
+    if (prevBlank && line) {
+      const r = PLAIN_RIDDLE.exec(line);
+      const rest = (r?.[2] ?? '').trim();
+      if (r?.[1] && !MONTH.test(rest) && !/^балл/i.test(rest) && parseKpId(r[1])) {
+        const short = rest.length <= 60 && !/[.?!]$/.test(rest);
+        mark = short ? `**${r[1]} ${rest}**`.replace(' **', '**') : `**${r[1]}** ${rest}`;
+      } else {
+        const t = PLAIN_TASK.exec(line);
+        if (t?.[1] && t[2] && !EACH.test(line) && !/^\d/.test(t[1])) mark = `**${t[1]}** — ${t[2]}`;
+      }
+    }
+    out.push(mark ?? raw);
+    prevBlank = !line || /^#/.test(line);
+  }
+  return out.join('\n');
 }
 
 function trimLines(lines: string[]): string {

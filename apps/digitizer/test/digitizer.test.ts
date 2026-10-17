@@ -3,6 +3,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
+import { parseRiddleSheets } from '@bgq/core';
 import type { GeoResult } from '@bgq/geo';
 import { applyH, localProjection, type Mat3, type XY } from '@bgq/georef';
 import { describe, expect, it } from 'vitest';
@@ -10,6 +11,7 @@ import { createApi } from '../server/api.ts';
 import { computeMap } from '../src/compute.ts';
 import { formatWindow, parseLabelId, parseWindow } from '../src/LabelPopover.tsx';
 import type { MapFile, Mark, PhotoLabels } from '../src/model.ts';
+import { htmlToSheetText } from '../src/paste.ts';
 
 const proj = localProjection(44.97, 19.61);
 const WORLD_TO_PX: Mat3 = [0.49, -0.09, 2000, 0.08, -0.5, 1500, 2e-5, -1.5e-5, 1];
@@ -387,5 +389,33 @@ describe('API загадок', () => {
     expect(r.json).toMatchObject({ sheets: ['green.jpg'] });
     expect(readFileSync(join(dir, 'riddles', 'green.jpg'), 'utf8')).toBe('jpg');
     expect(((await call(api, 'GET', '/state')).json as { photos: string[] }).photos).toEqual([]);
+  });
+});
+
+describe('вставка ответа ИИ из чата (HTML из буфера)', () => {
+  const html = [
+    '<h2>Задания</h2><p>БеоГеоКвест. Сремска Митровица<br>10 октября 2026</p>',
+    '<hr><p><strong>92 См. схему</strong></p><p>Забор площадки в месте, отмеченном крестом</p>',
+    '<p><strong>Моя чесма</strong> — 7 баллов. Фото у&nbsp;чесмы.</p>',
+    '<p>Фото всей команды — <strong>5 баллов каждое</strong>:</p>',
+    '<ul><li>киоска K67;</li><li>цветущего дерева.</li></ul>',
+  ].join('');
+
+  it('жирное → «**…**», заголовки → «#», пункты → «- »; разбор находит всё', () => {
+    const text = htmlToSheetText(html) ?? '';
+    expect(text).toContain('**92 См. схему**');
+    expect(text).toContain('# Задания');
+    expect(text).toContain('- киоска K67;');
+    const r = parseRiddleSheets(text);
+    expect(r.riddles.map((x) => x.id)).toEqual(['92']);
+    expect(r.tasks.map((t) => [t.title, t.points])).toEqual([
+      ['Моя чесма', 7],
+      ['Фото: киоска K67', 5],
+      ['Фото: цветущего дерева', 5],
+    ]);
+  });
+
+  it('HTML без оформления — null, вставляется как есть', () => {
+    expect(htmlToSheetText('<p>просто текст</p>')).toBeNull();
   });
 });

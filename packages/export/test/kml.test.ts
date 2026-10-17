@@ -83,7 +83,7 @@ describe('подписи и описания', () => {
   it('стили: только используемые цвета, без пар жёлтый/оранжевый и синий/бирюзовый', () => {
     const { kml } = buildKml(t, game.city);
     const styles = [...kml.matchAll(/<Style id="placemark-([a-z]+)">/g)].map((m) => m[1]);
-    expect(styles).toEqual(['red', 'purple', 'cyan', 'yellow', 'green', 'brown', 'gray']);
+    expect(styles).toEqual(['red', 'purple', 'cyan', 'yellow', 'pink', 'green', 'brown', 'gray']);
     expect(kml).toMatch(/<name>ФИНИШ<\/name>[\s\S]*?#placemark-brown/);
   });
 
@@ -177,6 +177,8 @@ describe('KML с планом маршрута', () => {
     const { loc: _l, ...noLoc } = riddle('95', false);
     const r = buildKml({ ...t, kps: [...t.kps, riddle('96', true), noLoc as Kp] }, game.city);
     expect(r.kml).toContain('<name>🧩96 · 9б</name>');
+    expect(r.kml).toMatch(/<name>🧩96 · 9б<\/name>[\s\S]*?<styleUrl>#placemark-pink</);
+    expect(colorOf({ points: 9, kind: 'riddle' })).toBe('pink');
     expect(r.unsolved).toEqual(['95']);
     expect(r.skipped).toEqual([]);
     expect(r.kml).toContain('🧩 не решены: 95 (9 б)');

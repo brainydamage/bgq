@@ -61,6 +61,22 @@ describe('расшифровка листков → загадки', () => {
     ]);
   });
 
+  it('текст без разметки (скопирован из чата как оформленный) — те же загадки и задания', () => {
+    const plain = sheets.replace(/\*\*/g, '').replace(/^#+\s*/gm, '');
+    const r = parseRiddleSheets(plain);
+    expect(r.riddles.map((x) => x.id)).toEqual(riddles.map((x) => x.id));
+    expect(r.tasks.map((t) => [t.title, t.points])).toEqual(tasks.map((t) => [t.title, t.points]));
+    expect(r.riddles.find((x) => x.id === '92')?.title).toBe('См. схему (схема на листке)');
+  });
+
+  it('без разметки: дата и «5 баллов каждое» — не заголовки', () => {
+    const r = parseRiddleSheets(
+      'Задания\n\nБеоГеоКвест. Сремска Митровица\n10 октября 2026\n\n92 См. схему\n\nЗабор площадки.',
+    );
+    expect(r.riddles).toEqual([{ id: '92', title: 'См. схему', text: 'Забор площадки.' }]);
+    expect(r.tasks).toEqual([]);
+  });
+
   it('номер задания — латиницей из названия, занятый — с суффиксом', () => {
     expect(taskId('Письмо себе')).toBe('t-pismo-sebe');
     expect(taskId('Фото: киоска K67')).toBe('t-foto-kioska-k67');

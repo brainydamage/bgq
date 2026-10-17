@@ -26,6 +26,7 @@ import {
   uploadSheet,
 } from './api.ts';
 import type { GameState } from './model.ts';
+import { htmlToSheetText } from './paste.ts';
 
 /** Запрос для ИИ: расшифровка фото листков в формат, который понимает «Вставить списком». */
 const AI_PROMPT = [
@@ -294,6 +295,19 @@ function ImportBox(p: {
           setPreview(null);
           setReport(null);
         }}
+        onPaste={(e) => {
+          // Из чата ИИ копируется оформленный текст — берём HTML и возвращаем звёздочки.
+          const html = e.clipboardData?.getData('text/html');
+          const marked = html ? htmlToSheetText(html) : null;
+          if (!marked) return;
+          e.preventDefault();
+          const ta = e.currentTarget as HTMLTextAreaElement;
+          const next =
+            ta.value.slice(0, ta.selectionStart) + marked + ta.value.slice(ta.selectionEnd);
+          setText(next);
+          setPreview(null);
+          setReport(null);
+        }}
       />
       <div class="row">
         <button
@@ -340,7 +354,8 @@ function ImportBox(p: {
         <div class="preview">
           {!preview.riddles.length && !preview.tasks.length && (
             <p class="bad">
-              Не нашёл ни одного «**номер название**» или «**название** — N баллов».
+              Не нашёл ни одной загадки («92 См. схему» с новой строки) или задания («Моя чесма — 7
+              баллов»). Скопируйте ответ ИИ целиком кнопкой «Копировать» под ним.
             </p>
           )}
           {preview.riddles.length > 0 && <b>Загадки (место отгадать)</b>}

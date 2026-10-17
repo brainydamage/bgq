@@ -8,7 +8,9 @@ import { clock } from '@bgq/routing';
  * жёлтый/оранжевый и синий/голубой на карте почти не различаются, их вместе не используем.
  * На 10.10: 1–3 — 31 КП, 4–5 — 21, 6–7 — 16, 8+ — 8.
  */
-export function colorOf(kp: Pick<Kp, 'points'>): string {
+export function colorOf(kp: Pick<Kp, 'points'> & Partial<Pick<Kp, 'kind'>>): string {
+  // Загадки — отдельным ярким цветом, баллы видны в названии («🧩96 · 9б»).
+  if (kp.kind === 'riddle') return RIDDLE_COLOR;
   if (kp.points >= 8) return 'red';
   if (kp.points >= 6) return 'purple';
   if (kp.points >= 4) return 'cyan';
@@ -18,14 +20,16 @@ export function colorOf(kp: Pick<Kp, 'points'>): string {
 const START_COLOR = 'green';
 const FINISH_COLOR = 'brown';
 const INELIGIBLE_COLOR = 'gray';
-const KP_COLORS = ['red', 'purple', 'cyan', 'yellow'];
+/** Загадки: розовый — в палитре Organic Maps не путается с цветами баллов [проверить на iPhone]. */
+const RIDDLE_COLOR = 'pink';
+const KP_COLORS = ['red', 'purple', 'cyan', 'yellow', RIDDLE_COLOR];
 
 /** Линия маршрута (KML-цвет aabbggrr): синяя — на карте не путается с метками. */
 const ROUTE_STYLE = 'route';
 const ROUTE_COLOR = 'ffd27819';
 
 export const LEGEND =
-  'красный — 8+ баллов · фиолетовый — 6–7 · бирюзовый — 4–5 · жёлтый — 1–3 · зелёный — старт · коричневый — финиш · ⏰ — окно работы';
+  'красный — 8+ баллов · фиолетовый — 6–7 · бирюзовый — 4–5 · жёлтый — 1–3 · розовый — загадка 🧩 · зелёный — старт · коричневый — финиш · ⏰ — окно работы';
 
 export const PLAN_LEGEND =
   'синяя линия — маршрут · «07 · 92 · 9б · 12:41» — 7-й по плану, приход в 12:41';
