@@ -164,6 +164,24 @@ describe('KML с планом маршрута', () => {
     expect(kml).toContain('прямые отрезки между точками');
   });
 
+  it('загадки: 🧩 в имени, нерешённые — в описании карты', () => {
+    const riddle = (id: string, withLoc: boolean): Kp => ({
+      ...kp('64'),
+      id,
+      number: Number.parseInt(id, 10),
+      kind: 'riddle',
+      points: 9,
+      title: 'Загадка',
+      ...(withLoc ? {} : { loc: undefined }),
+    });
+    const { loc: _l, ...noLoc } = riddle('95', false);
+    const r = buildKml({ ...t, kps: [...t.kps, riddle('96', true), noLoc as Kp] }, game.city);
+    expect(r.kml).toContain('<name>🧩96 · 9б</name>');
+    expect(r.unsolved).toEqual(['95']);
+    expect(r.skipped).toEqual([]);
+    expect(r.kml).toContain('🧩 не решены: 95 (9 б)');
+  });
+
   it('без плана — как раньше', () => {
     expect(buildKml(t, game.city).kml).not.toContain('Маршрут');
   });

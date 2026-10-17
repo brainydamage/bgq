@@ -49,6 +49,16 @@ export function App() {
       .catch((e: Error) => setError(e.message));
   }, []);
 
+  // Загадки правят со страницы «Загадки» (возможно, с другого ноутбука) — подтягиваем список КП.
+  useEffect(() => {
+    const t = setInterval(() => {
+      fetchState()
+        .then((s) => setData((d) => (d ? { ...d, kps: s.kps, riddles: s.riddles } : d)))
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(t);
+  }, []);
+
   const geo = useMemo(
     () => new Map<string, GeoResult>((data?.geo ?? []).map((g) => [g.id, g])),
     [data],
@@ -192,6 +202,9 @@ export function App() {
             </button>
           ))}
         </nav>
+        <a href="/riddles" target="_blank" rel="noreferrer">
+          загадки ↗
+        </a>
         <span class={`save ${save.state}`}>
           {save.state === 'saving' && 'сохраняю…'}
           {save.state === 'saved' && `сохранено ${save.at}`}

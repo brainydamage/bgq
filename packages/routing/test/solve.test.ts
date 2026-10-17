@@ -87,6 +87,30 @@ describe('solve: хэш, время, сводка', () => {
     expect(lines.at(-1)).toBe('Поиск 10,4 с (ortools)');
   });
 
+  it('сводка: загадки 🧩 в порядке и список нерешённых', () => {
+    const kp = (id: string, points: number, loc: boolean) => ({
+      id,
+      number: Number.parseInt(id, 10),
+      kind: 'riddle' as const,
+      points,
+      eligible: true,
+      title: 'Загадка',
+      description: [],
+      struck: [],
+      links: [],
+      answerKind: 'text' as const,
+      raw: '',
+      ...(loc && { loc: { lat: 45, lon: 19.6, source: 'manual' as const, confidence: 0.95 } }),
+    });
+    const lines = planSummary(plan, problem, [
+      kp('99', 9, true),
+      kp('95', 9, false),
+      kp('73', 7, false),
+    ]);
+    expect(lines[1]).toBe('Порядок (первый КП в 10:39): 64 → 🧩99⏰13:50');
+    expect(lines).toContain('🧩 Не решены 2, 16 б: 95 (9), 73 (7) — решили → ./bgq route');
+  });
+
   it('сводка: запас и ожидаемая ценность, если она меньше баллов', () => {
     const lines = planSummary({ ...plan, slackMin: 12.5, expectedPrize: 11.5 }, problem);
     expect(lines[0]).toContain('запас 12,5 мин');

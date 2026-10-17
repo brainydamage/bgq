@@ -264,7 +264,9 @@ function runSolve(gamesDir: string, o: { date?: string; time?: string; depart?: 
   if ((plan as Plan).problemHash !== problemHash(raw)) {
     fail('✗ plan.json построен не по этому problem.json (problem.json изменился во время поиска?)');
   }
-  for (const line of planSummary(plan as Plan, p)) console.log(line);
+  const pointsPath = join(gameDir, 'points.json');
+  const kps = existsSync(pointsPath) ? (readJson<PointsFile>(pointsPath).kps ?? []) : [];
+  for (const line of planSummary(plan as Plan, p, kps)) console.log(line);
   console.log(`→ ${rel(planPath)} · ./bgq kml — маршрут на карту`);
   return 0;
 }

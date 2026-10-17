@@ -6,6 +6,8 @@ import {
   type Loc,
   type MapFileResults,
   type PointsFile,
+  type Riddle,
+  riddleToKp,
   START_ID,
   type TableIssue,
 } from '@bgq/core';
@@ -24,6 +26,8 @@ export interface TableInput {
   kpsAt: string;
   geo?: { osmBase: string; results: GeoResult[] };
   map?: MapFileResults;
+  /** riddles.json: загадки → КП kind: riddle; отгадка — координаты (source: manual). */
+  riddles?: { updatedAt: string; riddles: Riddle[] };
   now?: Date;
 }
 
@@ -39,8 +43,23 @@ const iso = (d: Date) => d.toISOString();
 export function buildTable(input: TableInput): PointsFile {
   const geo = new Map((input.geo?.results ?? []).filter((g) => g.loc).map((g) => [g.id, g]));
   const map = new Map((input.map?.results ?? []).map((r) => [r.id, r]));
-  const known = new Set([...input.kps.map((k) => k.id), START_ID, FINISH_ID]);
   const issues: TableIssue[] = [];
+
+  // Загадки: номер, совпавший с КП Notion, — ошибка ввода (иначе КП задвоится).
+  const notion = new Set(input.kps.map((k) => k.id));
+  const riddleKps: Kp[] = [];
+  for (const r of input.riddles?.riddles ?? []) {
+    if (notion.has(r.id)) {
+      issues.push({
+        severity: 'critical',
+        code: 'riddle_id_conflict',
+        kpId: r.id,
+        message: 'номер загадки совпадает с КП из Notion — исправьте номер на странице «Загадки»',
+      });
+    } else riddleKps.push(riddleToKp(r, input.game));
+  }
+  const allKps = [...input.kps, ...riddleKps];
+  const known = new Set([...allKps.map((k) => k.id), START_ID, FINISH_ID]);
 
   const start = input.game.start.loc ?? map.get(START_ID)?.loc;
   const finish = input.game.finish.loc ?? map.get(FINISH_ID)?.loc;
@@ -70,7 +89,7 @@ export function buildTable(input: TableInput): PointsFile {
     });
   }
 
-  const kps = input.kps.map((kp): Kp => {
+  const kps = allKps.map((kp): Kp => {
     const { loc: own, altLocs: _altLocs, mapColor: overrideColor, window: ownWindow, ...base } = kp;
     const m = map.get(kp.id);
     const g = geo.get(kp.id);
@@ -101,7 +120,25 @@ export function buildTable(input: TableInput): PointsFile {
         });
       }
     }
-    if (eligible && !loc) {
+    if (kp.kind === 'riddle' && manual && m?.loc) {
+      const d = Math.round(haversineM([manual.lat, manual.lon], [m.loc.lat, m.loc.lon]));
+      if (d > MISMATCH_M) {
+        issues.push({
+          severity: 'cosmetic',
+          code: 'riddle_map_mismatch',
+          kpId: kp.id,
+          message: `отгадка (координаты) в ${d} м от точки на карте — берём координаты`,
+        });
+      }
+    }
+    if (eligible && !loc && kp.kind === 'riddle') {
+      issues.push({
+        severity: 'cosmetic',
+        code: 'riddle_unsolved',
+        kpId: kp.id,
+        message: `загадка не решена (${kp.points} б) — в маршрут не идёт`,
+      });
+    } else if (eligible && !loc) {
       issues.push({
         severity: 'critical',
         code: 'no_location',
@@ -141,6 +178,7 @@ export function buildTable(input: TableInput): PointsFile {
       kps: input.kpsAt,
       ...(input.geo && { geo: { osmBase: input.geo.osmBase } }),
       ...(input.map && { map: { updatedAt: input.map.updatedAt } }),
+      ...(input.riddles && { riddles: { updatedAt: input.riddles.updatedAt } }),
     },
     ...(start && { start }),
     ...(finish && { finish }),

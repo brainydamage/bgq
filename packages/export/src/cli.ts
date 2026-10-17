@@ -111,11 +111,15 @@ async function streetPath(
 const game = loadGame(join(gameDir, 'game.json'));
 const { plan, why } = loadPlan();
 const street = plan && !values.straight ? await streetPath(points as PointsFile, plan) : {};
-const { kml, placemarks, skipped, planMissing } = buildKml(points as PointsFile, game.city, {
-  includeIneligible: values.all ?? false,
-  plan,
-  ...(street.path && { routePath: street.path }),
-});
+const { kml, placemarks, skipped, planMissing, unsolved } = buildKml(
+  points as PointsFile,
+  game.city,
+  {
+    includeIneligible: values.all ?? false,
+    plan,
+    ...(street.path && { routePath: street.path }),
+  },
+);
 const out = join(gameDir, 'points.kml');
 writeFileSync(out, kml);
 
@@ -124,6 +128,7 @@ console.log(
   `Игра ${rel(gameDir)}: меток ${placemarks} (старт ${t.start ? '✓' : '✗'}, финиш ${t.finish ? '✓' : '✗'})`,
 );
 if (skipped.length) console.log(`△ без координат, на карту не попали: ${skipped.join(', ')}`);
+if (unsolved.length) console.log(`🧩 загадки не решены (не на карте): ${unsolved.join(', ')}`);
 if (why) console.log(`△ план устарел (${why}) — маршрут не добавлен; ./bgq problem && ./bgq solve`);
 if (planMissing.length) {
   console.log(`△ в плане КП не с этой карты: ${planMissing.join(', ')} — маршрут не добавлен`);

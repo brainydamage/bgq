@@ -59,6 +59,19 @@
             }
           },
           "additionalProperties": false
+        },
+        "riddles": {
+          "type": "object",
+          "required": [
+            "updatedAt"
+          ],
+          "properties": {
+            "updatedAt": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(Z|[+-]\\d{2}:\\d{2})$"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -460,7 +473,10 @@
               "map_geo_mismatch",
               "not_on_map",
               "no_start",
-              "no_finish"
+              "no_finish",
+              "riddle_unsolved",
+              "riddle_id_conflict",
+              "riddle_map_mismatch"
             ]
           },
           "kpId": {

@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
-import { addMinutes, clockIn, type Plan, type Problem } from '@bgq/core';
+import { addMinutes, clockIn, type Kp, type Plan, type Problem } from '@bgq/core';
 import { RoutingError } from './osrm.ts';
 
 /** Python-солвер (OR-Tools, uv-проект). */
@@ -63,8 +63,16 @@ export function clock(t0: string, s: number): string {
 const km = (m: number) => `${(m / 1000).toFixed(1).replace('.', ',')} км`;
 const num = (x: number) => String(Math.round(x * 10) / 10).replace('.', ',');
 
-/** Сводка плана для терминала: итог, порядок, что выброшено. */
-export function planSummary(plan: Plan, problem: Problem): string[] {
+/**
+ * Сводка плана для терминала: итог, порядок, что выброшено. kps (points.json) — чтобы
+ * отметить загадки 🧩 и перечислить нерешённые.
+ */
+export function planSummary(plan: Plan, problem: Problem, kps: Kp[] = []): string[] {
+  const riddles = new Set(kps.filter((k) => k.kind === 'riddle').map((k) => k.id));
+  const unsolved = kps
+    .filter((k) => k.kind === 'riddle' && k.eligible && !k.loc)
+    .sort((a, b) => b.points - a.points || a.id.localeCompare(b.id, 'ru', { numeric: true }));
+  const mark = (id: string) => (riddles.has(id) ? `🧩${id}` : id);
   const points = new Map(problem.nodes.map((n) => [n.kpId, n.points]));
   const all = problem.nodes.reduce((s, n) => s + n.points, 0);
   const late = -plan.slackMin;
@@ -87,12 +95,17 @@ export function planSummary(plan: Plan, problem: Problem): string[] {
   }
   if (first) {
     lines.push(
-      `Порядок (первый КП в ${clock(plan.t0, first.arriveS)}): ${plan.stops.map((s) => (windows.has(s.kpId) ? `${s.kpId}⏰${clock(plan.t0, s.arriveS)}` : s.kpId)).join(' → ')}`,
+      `Порядок (первый КП в ${clock(plan.t0, first.arriveS)}): ${plan.stops.map((s) => (windows.has(s.kpId) ? `${mark(s.kpId)}⏰${clock(plan.t0, s.arriveS)}` : mark(s.kpId))).join(' → ')}`,
     );
   }
   if (dropped.length) {
     lines.push(
-      `Не в плане ${dropped.length} КП, ${droppedPoints} б: ${dropped.map((id) => `${id} (${points.get(id) ?? 0})`).join(', ')}`,
+      `Не в плане ${dropped.length} КП, ${droppedPoints} б: ${dropped.map((id) => `${mark(id)} (${points.get(id) ?? 0})`).join(', ')}`,
+    );
+  }
+  if (unsolved.length) {
+    lines.push(
+      `🧩 Не решены ${unsolved.length}, ${unsolved.reduce((s, k) => s + k.points, 0)} б: ${unsolved.map((k) => `${k.id} (${k.points})`).join(', ')} — решили → ./bgq route`,
     );
   }
   lines.push(`Поиск ${num(plan.solverMs / 1000)} с (${plan.solver})`);

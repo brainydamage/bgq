@@ -102,8 +102,10 @@ export function KpList(p: KpListProps) {
   );
   const windowOn = new Map<string, TimeWindow>();
   for (const ph of p.photos) for (const m of ph.marks) if (m.window) windowOn.set(m.id, m.window);
-  const eligible = p.kps.filter((k) => k.eligible);
+  const eligible = p.kps.filter((k) => k.eligible && k.kind !== 'riddle');
   const done = eligible.filter((k) => p.results.has(k.id)).length;
+  const riddles = p.kps.filter((k) => k.kind === 'riddle');
+  const riddlesSolved = riddles.filter((k) => k.loc || p.results.has(k.id)).length;
   const rows = [...p.kps]
     .sort((a, b) => byId(a.id, b.id))
     .filter((k) => !p.todoOnly || (k.eligible && !markedOn.has(k.id)));
@@ -112,6 +114,7 @@ export function KpList(p: KpListProps) {
     <section class="panel list">
       <h3>
         КП: координаты у {done} из {eligible.length} доступных
+        {riddles.length > 0 && ` · загадки: ${riddlesSolved} из ${riddles.length}`}
       </h3>
       <label>
         <input
@@ -155,6 +158,11 @@ export function KpList(p: KpListProps) {
                 {isControl && <span title="адрес найден geo — опорная точка">⌂</span>}
                 {on.length > 0 && (
                   <span title={on.join(', ')}>●{on.length > 1 ? on.length : ''}</span>
+                )}
+                {k.kind === 'riddle' && (
+                  <span title={k.loc ? 'загадка — отгадка введена координатами' : 'загадка'}>
+                    🧩{k.loc ? '✓' : ''}
+                  </span>
                 )}
                 {!k.eligible && <span title="недоступен нашей категории">вело</span>}
                 {(k.window ?? windowOn.get(k.id)) && <span title="есть окно работы">⏰</span>}

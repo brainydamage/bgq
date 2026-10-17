@@ -42,9 +42,10 @@ function xml(s: string): string {
 const short = (hhmm: string) => (hhmm.endsWith(':00') ? String(Number(hhmm.slice(0, 2))) : hhmm);
 export const windowLabel = (w: TimeWindow) => `${short(w.from)}–${short(w.to)}`;
 
-/** «92 · 9б», «99 · 9б ⏰14–18». */
+/** «92 · 9б», «99 · 9б ⏰14–18», «🧩96 · 9б» — загадка. */
 export function placemarkName(kp: Kp): string {
-  return `${kp.id} · ${kp.points}б${kp.window ? ` ⏰${windowLabel(kp.window)}` : ''}`;
+  const riddle = kp.kind === 'riddle' ? '🧩' : '';
+  return `${riddle}${kp.id} · ${kp.points}б${kp.window ? ` ⏰${windowLabel(kp.window)}` : ''}`;
 }
 
 const SOURCE_LABEL: Record<Loc['source'], string> = {
@@ -124,6 +125,8 @@ export interface KmlResult {
   skipped: string[];
   /** КП из плана, которых нет среди доступных с координатами (план от других points). */
   planMissing: string[];
+  /** Загадки без отгадки — на карту не поставить, перечислены в описании. */
+  unsolved: string[];
 }
 
 function routeLine(
@@ -218,12 +221,21 @@ export function buildKml(t: PointsFile, city: string, o: KmlOptions = {}): KmlRe
     );
   }
 
+  const unsolved = eligible.filter((k) => k.kind === 'riddle' && !k.loc);
+  const legend = [
+    LEGEND,
+    ...(route.length ? [PLAN_LEGEND] : []),
+    ...(unsolved.length
+      ? [`🧩 не решены: ${unsolved.map((k) => `${k.id} (${k.points} б)`).join(', ')}`]
+      : []),
+  ].join('\n');
+
   const kml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<kml xmlns="http://www.opengis.net/kml/2.2">',
     '<Document>',
     `  <name>${xml(`БГК ${city} ${t.gameId}`)}</name>`,
-    `  <description>${xml(route.length ? `${LEGEND}\n${PLAN_LEGEND}` : LEGEND)}</description>`,
+    `  <description>${xml(legend)}</description>`,
     ...styles,
     folder('Старт и финиш', ends),
     folder('Маршрут', route),
@@ -240,7 +252,8 @@ export function buildKml(t: PointsFile, city: string, o: KmlOptions = {}): KmlRe
   return {
     kml: `${kml}\n`,
     placemarks: ends.length + inPlan.length + kps.length + ineligible.length,
-    skipped: eligible.filter((k) => !k.loc).map((k) => k.id),
+    skipped: eligible.filter((k) => !k.loc && k.kind !== 'riddle').map((k) => k.id),
     planMissing,
+    unsolved: unsolved.map((k) => k.id),
   };
 }

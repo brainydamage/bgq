@@ -276,3 +276,87 @@ describe('API digitizer', () => {
     expect(r.status).toBe(404);
   });
 });
+
+describe('API загадок', () => {
+  function gameDir(kps: unknown[] = []) {
+    const dir = mkdtempSync(join(tmpdir(), 'bgq-riddles-'));
+    const game = JSON.parse(
+      readFileSync(join(import.meta.dirname, '../../../fixtures/2026-10-10/game.json'), 'utf8'),
+    );
+    writeFileSync(join(dir, 'game.json'), JSON.stringify(game));
+    writeFileSync(join(dir, 'kps.json'), JSON.stringify({ kps }));
+    return dir;
+  }
+  const sheet =
+    '**96 Загадка**\nМежду ними ровно пять.\n\n**Письмо себе**\n50–100 слов.\n\n**74** Львы.';
+  type File = { riddles: { id: string; title: string; text: string; notes: string }[] };
+
+  it('импорт расшифровки: новые добавлены, без номера пропущены, повтор не затирает заметки', async () => {
+    const dir = gameDir();
+    const api = createApi(dir);
+    const first = await call(api, 'POST', '/riddles/import', JSON.stringify({ text: sheet }));
+    expect(first.json).toMatchObject({
+      result: { added: ['96', '74'], filled: [], kept: [] },
+      skipped: ['Письмо себе'],
+    });
+    const r96 = (first.json as { file: File }).file.riddles.find((r) => r.id === '96');
+    await call(api, 'PUT', '/riddles/96', JSON.stringify({ ...r96, notes: 'крест у церкви?' }));
+    const again = await call(api, 'POST', '/riddles/import', JSON.stringify({ text: sheet }));
+    expect(again.json).toMatchObject({ result: { added: [], kept: ['96', '74'] } });
+    const saved = JSON.parse(readFileSync(join(dir, 'riddles.json'), 'utf8')) as File;
+    expect(saved.riddles.map((r) => r.id)).toEqual(['74', '96']);
+    expect(saved.riddles.find((r) => r.id === '96')?.notes).toBe('крест у церкви?');
+  });
+
+  it('отгадка → загадка в списке КП с координатами; номер КП Notion не дублируется', async () => {
+    const notion = { id: '74', kind: 'classic', title: 'КП 74', eligible: true };
+    const api = createApi(gameDir([notion]));
+    await call(api, 'POST', '/riddles/import', JSON.stringify({ text: sheet }));
+    const riddle = {
+      id: '96',
+      title: 'Загадка',
+      text: 'Между ними ровно пять.',
+      notes: '',
+      answer: { lat: 44.9714, lon: 19.6101, raw: '44.9714, 19.6101' },
+      updatedAt: '2026-10-10T10:40:00.000Z',
+    };
+    expect((await call(api, 'PUT', '/riddles/96', JSON.stringify(riddle))).status).toBe(200);
+    const state = (await call(api, 'GET', '/state')).json as {
+      kps: { id: string; kind: string; loc?: unknown }[];
+    };
+    expect(state.kps.map((k) => [k.id, k.kind])).toEqual([
+      ['74', 'classic'],
+      ['96', 'riddle'],
+    ]);
+    expect(state.kps[1]?.loc).toEqual({
+      lat: 44.9714,
+      lon: 19.6101,
+      source: 'manual',
+      confidence: 0.95,
+    });
+  });
+
+  it('переименование в занятый номер и мусор — 400; удаление', async () => {
+    const api = createApi(gameDir());
+    await call(api, 'POST', '/riddles/import', JSON.stringify({ text: sheet }));
+    const base = { title: '', text: '', notes: '', updatedAt: '2026-10-10T10:40:00.000Z' };
+    const clash = await call(api, 'PUT', '/riddles/74', JSON.stringify({ ...base, id: '96' }));
+    expect(clash.status).toBe(400);
+    expect(
+      (await call(api, 'PUT', '/riddles/x', JSON.stringify({ ...base, id: 'нет' }))).status,
+    ).toBe(400);
+    const renamed = await call(api, 'PUT', '/riddles/74', JSON.stringify({ ...base, id: '75А' }));
+    expect((renamed.json as File).riddles.map((r) => r.id)).toEqual(['75А', '96']);
+    const left = await call(api, 'DELETE', '/riddles/75%D0%90');
+    expect((left.json as File).riddles.map((r) => r.id)).toEqual(['96']);
+  });
+
+  it('фото листков — в riddles/, не в фото карты', async () => {
+    const dir = gameDir();
+    const api = createApi(dir);
+    const r = await call(api, 'POST', '/riddles/sheets?name=green.jpg', 'jpg');
+    expect(r.json).toMatchObject({ sheets: ['green.jpg'] });
+    expect(readFileSync(join(dir, 'riddles', 'green.jpg'), 'utf8')).toBe('jpg');
+    expect(((await call(api, 'GET', '/state')).json as { photos: string[] }).photos).toEqual([]);
+  });
+});

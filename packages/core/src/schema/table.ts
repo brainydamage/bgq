@@ -45,6 +45,12 @@ export const TableIssue = Type.Object(
       'not_on_map',
       'no_start',
       'no_finish',
+      /** Загадка без отгадки — не ошибка: в маршрут не идёт, пока не решена. */
+      'riddle_unsolved',
+      /** Номер загадки совпал с КП из Notion. */
+      'riddle_id_conflict',
+      /** Отгадка (координаты) и точка на карте расходятся. */
+      'riddle_map_mismatch',
     ]),
     kpId: Type.Optional(Type.String()),
     message: Type.String(),
@@ -72,6 +78,10 @@ export const PointsFile = Type.Object(
           Type.Object({ osmBase: Type.String() }, { additionalProperties: false }),
         ),
         map: Type.Optional(
+          Type.Object({ updatedAt: IsoDateTime }, { additionalProperties: false }),
+        ),
+        /** riddles.json — загадки со страницы «Загадки». */
+        riddles: Type.Optional(
           Type.Object({ updatedAt: IsoDateTime }, { additionalProperties: false }),
         ),
       },

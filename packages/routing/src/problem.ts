@@ -26,8 +26,15 @@ export function secondsFrom(start: string, hhmm: string): number {
   return (toMin(hhmm) - toMin(start)) * 60;
 }
 
-export function serviceSeconds(kp: Pick<Kp, 'answerKind' | 'serviceMin'>, params: Params): number {
-  const min = kp.serviceMin ?? params.serviceMin[kp.answerKind] ?? params.serviceMin.default;
+export function serviceSeconds(
+  kp: Pick<Kp, 'answerKind' | 'serviceMin'> & Partial<Pick<Kp, 'kind'>>,
+  params: Params,
+): number {
+  const min =
+    kp.serviceMin ??
+    (kp.kind === 'riddle' ? params.serviceMin.riddle : undefined) ??
+    params.serviceMin[kp.answerKind] ??
+    params.serviceMin.default;
   return Math.round(min * 60);
 }
 

@@ -273,3 +273,66 @@ describe('buildTable на 10.10: Notion + OSM + разметка карты', ()
     expect(formatTableSummary(t)).toMatchSnapshot();
   });
 });
+
+describe('buildTable: загадки', () => {
+  const riddle = (id: string, answer?: { lat: number; lon: number }) => ({
+    id,
+    title: 'Загадка',
+    text: 'текст',
+    notes: '',
+    ...(answer && { answer: { ...answer, raw: `${answer.lat}, ${answer.lon}` } }),
+    updatedAt: '2026-10-10T10:40:00.000Z',
+  });
+  const t = buildTable({
+    game,
+    now: NOW,
+    kpsAt: '2026-10-16T21:00:00.000Z',
+    kps: [kp('64', { loc: loc(44.97, 'manual') })],
+    riddles: {
+      updatedAt: '2026-10-10T10:41:00.000Z',
+      riddles: [
+        riddle('96', { lat: 44.9714, lon: 19.6101 }),
+        riddle('95'),
+        riddle('64'),
+        riddle('73', { lat: 44.97, lon: 19.6 }),
+        riddle('84'),
+      ],
+    },
+    map: mapOf([
+      { id: '73', loc: loc(44.975, 'map', 0.8), color: null, photo: 'a.jpg' },
+      { id: '84', loc: loc(44.98, 'map', 0.8), color: null, photo: 'a.jpg' },
+    ]),
+  });
+  const k = (id: string) => t.kps.find((x) => x.id === id);
+  const codes = t.issues.map((i) => `${i.severity}:${i.code}:${i.kpId}`);
+
+  it('проходит схему; решённая — КП kind: riddle с координатами отгадки', () => {
+    expect(schemaErrors(PointsFile, t)).toEqual([]);
+    expect(k('96')).toMatchObject({ kind: 'riddle', points: 9, eligible: true });
+    expect(k('96')?.loc).toMatchObject({ lat: 44.9714, lon: 19.6101, source: 'manual' });
+    expect(t.sources.riddles).toEqual({ updatedAt: '2026-10-10T10:41:00.000Z' });
+  });
+
+  it('нерешённая — не ошибка; точка на карте решает загадку', () => {
+    expect(k('95')?.loc).toBeUndefined();
+    expect(codes).toContain('cosmetic:riddle_unsolved:95');
+    expect(codes.filter((c) => c.startsWith('critical:no_location'))).toEqual([]);
+    expect(k('84')?.loc?.source).toBe('map');
+    expect(codes.some((c) => c.includes('unknown_map_id'))).toBe(false);
+  });
+
+  it('номер совпал с КП Notion — критично, КП не задваивается', () => {
+    expect(codes).toContain('critical:riddle_id_conflict:64');
+    expect(t.kps.filter((x) => x.id === '64')).toHaveLength(1);
+    expect(k('64')?.kind).toBe('classic');
+  });
+
+  it('координаты отгадки главнее карты; расхождение > 60 м — предупреждение', () => {
+    expect(k('73')?.loc?.source).toBe('manual');
+    expect(codes).toContain('cosmetic:riddle_map_mismatch:73');
+  });
+
+  it('сводка: решено 3 из 4 загадок', () => {
+    expect(formatTableSummary(t)).toContain('загадки: решено 3 из 4 (24 из 33 б)');
+  });
+});

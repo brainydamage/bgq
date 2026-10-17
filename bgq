@@ -1,5 +1,5 @@
 #!/bin/sh
-# Короткий вход в инструменты: ./bgq init | parse | osm <город> | geo | map | table | kml | matrix | problem | solve | --help
+# Короткий вход в инструменты: ./bgq init | parse | osm <город> | geo | map | table | kml | matrix | problem | solve | route | --help
 set -e
 root=$(cd "$(dirname "$0")" && pwd)
 
@@ -23,5 +23,13 @@ case "$1" in
   map) shift; exec node "$root/apps/digitizer/server/start.ts" "$@" ;;
   table) shift; exec node "$root/packages/table/src/cli.ts" "$@" ;;
   kml) shift; exec node "$root/packages/export/src/cli.ts" "$@" ;;
+  route)
+    # После отгадки загадки или правки карты: таблица → расстояния → задача → план → KML.
+    shift
+    node "$root/packages/table/src/cli.ts" "$@"
+    node "$root/packages/routing/src/cli.ts" matrix "$@"
+    node "$root/packages/routing/src/cli.ts" problem "$@"
+    node "$root/packages/routing/src/cli.ts" solve "$@"
+    exec node "$root/packages/export/src/cli.ts" "$@" ;;
   *) exec node "$root/packages/ingest/src/cli.ts" "$@" ;;
 esac

@@ -1,6 +1,7 @@
 export * from './eligibility.ts';
 export * from './ids.ts';
 export * from './points.ts';
+export * from './riddles.ts';
 export * from './schema/common.ts';
 export * from './schema/event.ts';
 export * from './schema/game.ts';
@@ -8,6 +9,7 @@ export * from './schema/kp.ts';
 export * from './schema/params.ts';
 export * from './schema/plan.ts';
 export * from './schema/problem.ts';
+export * from './schema/riddle.ts';
 export * from './schema/table.ts';
 export * from './schemas.ts';
 export * from './text.ts';

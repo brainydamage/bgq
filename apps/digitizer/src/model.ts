@@ -1,5 +1,5 @@
 // Данные digitizer — общие для сервера (server/) и браузера (src/).
-import type { Game, Kp, MapResult, TimeWindow } from '@bgq/core';
+import type { Game, Kp, MapResult, RiddlesFile, TimeWindow } from '@bgq/core';
 import type { GeoResult } from '@bgq/geo';
 import type { FitReport } from '@bgq/georef';
 
@@ -48,7 +48,9 @@ export interface MapFile {
 export interface GameState {
   gameDir: string;
   game: Game;
+  /** КП из Notion + загадки (kind: riddle) — всё, что можно отметить на карте. */
   kps: Kp[];
+  riddles: RiddlesFile;
   geo: GeoResult[];
   map: MapFile | null;
   photos: string[];

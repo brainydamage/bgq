@@ -47,6 +47,10 @@
         "video": {
           "type": "number",
           "minimum": 0
+        },
+        "riddle": {
+          "type": "number",
+          "minimum": 0
         }
       },
       "additionalProperties": false

@@ -1,10 +1,17 @@
 #!/usr/bin/env node
-// ./bgq table [--date ГГГГ-ММ-ДД] — kps.json + geo.json + map.json → games/<дата>/points.json.
+// ./bgq table [--date ГГГГ-ММ-ДД] — kps.json + geo.json + map.json + riddles.json → games/<дата>/points.json.
 // Код выхода 1 — есть критичные (доступный КП без координат, неизвестный номер на карте).
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { type Kp, MapFileResults, PointsFile, schemaErrors } from '@bgq/core';
+import {
+  type Kp,
+  MapFileResults,
+  PointsFile,
+  type Riddle,
+  RiddlesFile,
+  schemaErrors,
+} from '@bgq/core';
 import type { GeoResult } from '@bgq/geo';
 import { currentGameDir, InitError, loadGame } from '@bgq/ingest';
 import { buildTable } from './build.ts';
@@ -77,7 +84,25 @@ function main(): void {
     console.log('△ нет map.json — координаты только по адресам (./bgq map)');
   }
 
-  const table = buildTable({ game, kps, kpsAt, ...(geo && { geo }), ...(map && { map }) });
+  let riddles: { updatedAt: string; riddles: Riddle[] } | undefined;
+  if (existsSync(path('riddles.json'))) {
+    const r: unknown = JSON.parse(readFileSync(path('riddles.json'), 'utf8'));
+    const errors = schemaErrors(RiddlesFile, r);
+    if (errors.length) fail(`✗ ${rel(path('riddles.json'))}: ${errors.join('; ')}`);
+    riddles = {
+      updatedAt: statSync(path('riddles.json')).mtime.toISOString(),
+      riddles: (r as RiddlesFile).riddles,
+    };
+  }
+
+  const table = buildTable({
+    game,
+    kps,
+    kpsAt,
+    ...(geo && { geo }),
+    ...(map && { map }),
+    ...(riddles && { riddles }),
+  });
   const errors = schemaErrors(PointsFile, table);
   if (errors.length) fail(`✗ points.json не проходит схему (ошибка в коде): ${errors.join('; ')}`);
   writeFileSync(path('points.json'), `${JSON.stringify(table, null, 2)}\n`);

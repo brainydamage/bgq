@@ -20,6 +20,8 @@ export const Params = Type.Object(
         drawing: Type.Optional(Minutes),
         judge: Type.Optional(Minutes),
         video: Type.Optional(Minutes),
+        /** Загадка: найти место и табличку (калибровка 10.10 — ~8 мин). */
+        riddle: Type.Optional(Minutes),
       },
       { additionalProperties: false },
     ),
@@ -33,7 +35,7 @@ export type Params = Static<typeof Params>;
 export const DEFAULT_PARAMS: Params = {
   v: 1,
   speedKmh: 4.3,
-  // КП 4–6 мин; судья/видео дольше (бриф, раздел 2).
-  serviceMin: { default: 5, drawing: 6, judge: 15, video: 10 },
+  // КП 4–6 мин; судья/видео дольше; загадка с поиском таблички ~8 мин (бриф, раздел 2).
+  serviceMin: { default: 5, drawing: 6, judge: 15, video: 10, riddle: 8 },
   restMin: 0,
 };

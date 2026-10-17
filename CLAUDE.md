@@ -29,7 +29,7 @@ TypeScript/Node для всего, кроме OR-Tools солвера (Python). 
 - **osmium-tool** (`brew install osmium-tool`) — системная утилита для разбора выгрузки OSM (.osm.pbf); нужна `./bgq osm`. Тест с osmium пропускается, если утилиты нет.
 
 ## Структура
-- `packages/core` — типы, схемы, правило баллов, нормализация id.
+- `packages/core` — типы, схемы, правило баллов, нормализация id, загадки (`riddles.ts`: разбор расшифровки листков и координат отгадки).
 - `packages/ingest` — парсер Notion-markdown, overrides, CLI (`src/cli.ts`).
 - `packages/geo` — справочник адресов OSM (выгрузка Geofabrik + osmium), нечёткий поиск адресов, оценка против эталона, CLI (`src/cli.ts`).
 - `packages/routing` — граф OSRM, матрица расстояний, сборка `Problem` для солвера, запуск солвера и сводка плана (`src/solve.ts`), CLI (`src/cli.ts`).
@@ -39,7 +39,7 @@ TypeScript/Node для всего, кроме OR-Tools солвера (Python). 
 - `packages/georef` — математика привязки фото карты: гомография, RANSAC, местная поправка, leave-one-out. Без DOM — работает в Node и браузере.
 - `apps/digitizer` — веб-приложение разметки кружков на фото карты (Vite + Preact). `server/` — запуск и API к каталогу игры (плагин Vite), `src/` — UI; `src/compute.ts` — расчёт координат (тестируется в Node). Свой `tsconfig.json` (DOM + JSX).
 - `games/` — рабочая папка, **в git не идёт ничего, кроме `games/_template/game.json`**:
-  - `games/<дата>/` — игра: `game.json`, `overrides.yaml`, экспорт, генерируемые `kps.json`/`report.json`/`geo.json`/`points.json`, фото карты `photos/` и разметка `map.json`. Играми считаются только папки-даты.
+  - `games/<дата>/` — игра: `game.json`, `overrides.yaml`, экспорт, генерируемые `kps.json`/`report.json`/`geo.json`/`points.json`, фото карты `photos/` и разметка `map.json`, загадки `riddles.json` и фото листков `riddles/`. Играми считаются только папки-даты.
   - `games/_template/game.json` — образец конфига; `./bgq init` берёт его, если прошлых игр нет.
   - `games/osm/` — выгрузка OSM Сербии и справочники городов (кэш).
 - Данные прошлой игры для тестов (в т.ч. её `game.json`, `overrides.yaml`, `problem.json` и итоги по протоколу `result.yaml`) — в `fixtures/<дата>/`.
@@ -50,7 +50,8 @@ TypeScript/Node для всего, кроме OR-Tools солвера (Python). 
 - `./bgq parse` — прогон последней игры с пересчётом при каждом сохранении.
 - `./bgq osm <город>` — накануне игры: выгрузка Сербии с Geofabrik (если её нет; `--refresh` — заново) → справочник `games/osm/<город>.json` и пешеходный граф OSRM `games/osm/osrm-<город>/` (Docker).
 - `./bgq geo` — координаты адресных КП → `games/<дата>/geo.json` (`--reference <yaml>` — сверка с эталоном).
-- `./bgq map` — digitizer в браузере: фото карты → кружки КП → `games/<дата>/map.json` (автосохранение).
+- `./bgq map` — digitizer в браузере: фото карты → кружки КП → `games/<дата>/map.json` (автосохранение). Страница `/riddles` — загадки (вставка расшифровки листков, заметки, отгадки координатами) → `riddles.json`; `--lan` — открыть для второго ноутбука.
+- `./bgq route` — после отгадки или правки карты: table → matrix → problem → solve → kml (~17 с).
 - `./bgq table` — kps + geo + map → `games/<дата>/points.json` (вход для маршрута); код выхода 1 — доступный КП без координат или нет старта/финиша.
 - `./bgq kml` — `points.json` → `games/<дата>/points.kml` для Organic Maps (`--all` — и недоступные); со свежим `plan.json` — ещё линия маршрута по улицам (OSRM в Docker; без него или `--straight` — прямые) и КП по порядку.
 - `./bgq matrix` — расстояния пешком между точками (OSRM; `--haversine` — по прямой) → `matrix.json`.

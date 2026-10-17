@@ -377,3 +377,177 @@ aside {
 .list li.missing {
   color: var(--warn);
 }
+
+/* Страница «Загадки» */
+.riddles-page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 12px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.riddles-page header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex-wrap: wrap;
+}
+
+.riddles-page .panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.riddles-page h3 {
+  margin: 0 0 8px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.riddles-page .tabs {
+  display: inline-flex;
+  gap: 4px;
+  font-weight: normal;
+}
+
+.riddles-page textarea,
+.riddles-page input:not([type="file"]) {
+  font: inherit;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.riddles-page .row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.riddles-page .row input {
+  width: auto;
+  flex: 1;
+}
+
+.riddles-page .prompt {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  background: var(--bg);
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.riddles-page .prompt code {
+  flex: 1;
+  white-space: normal;
+}
+
+.riddles-page button.primary {
+  background: var(--text);
+  color: var(--panel);
+  border-color: var(--text);
+}
+
+.riddles-page button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.riddles-page .muted {
+  color: var(--muted);
+}
+
+.riddles-page .good {
+  color: var(--good);
+}
+
+.riddles-page .warn {
+  color: var(--warn);
+}
+
+.riddles-page .bad,
+.riddles-page .error {
+  color: var(--bad);
+}
+
+.riddles-page .preview ul {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+
+.riddles-page .sheets {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.riddles-page .sheets img {
+  height: 120px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+}
+
+.riddle {
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--warn);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.riddle.solved {
+  border-left-color: var(--good);
+}
+
+.riddle .head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.riddle .head .num {
+  font-size: 18px;
+}
+
+.riddle .head input.title {
+  flex: 1;
+  width: auto;
+}
+
+.riddle label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.riddle label textarea,
+.riddle label input {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.solved {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.solved td {
+  padding: 4px 8px;
+  border-top: 1px solid var(--line);
+}

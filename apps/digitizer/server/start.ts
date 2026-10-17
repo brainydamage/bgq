@@ -11,8 +11,9 @@ const APP_DIR = resolve(import.meta.dirname, '..');
 const GAMES_DIR = resolve(APP_DIR, '../../games');
 
 const USAGE = [
-  'usage: ./bgq map [--date ГГГГ-ММ-ДД] [--port N] [--no-open]',
-  '  разметка кружков КП на фото карты → games/<дата>/map.json',
+  'usage: ./bgq map [--date ГГГГ-ММ-ДД] [--port N] [--no-open] [--lan]',
+  '  разметка кружков КП на фото карты → games/<дата>/map.json; загадки — /riddles',
+  '  --lan — открыть для соседних устройств (второй ноутбук по точке доступа iPhone)',
 ].join('\n');
 
 function fail(message: string): never {
@@ -28,6 +29,7 @@ const { values } = (() => {
         games: { type: 'string' },
         port: { type: 'string', default: '5173' },
         'no-open': { type: 'boolean', default: false },
+        lan: { type: 'boolean', default: false },
         help: { type: 'boolean', short: 'h' },
       },
     });
@@ -66,9 +68,30 @@ const server = await createServer({
   logLevel: 'warn',
   plugins: [bgqApi(gameDir)],
   oxc: { jsx: { runtime: 'automatic', importSource: 'preact' } },
-  server: { host: 'localhost', port: Number(values.port), open: !values['no-open'] },
+  // --lan: слушаем все интерфейсы — страницу «Загадки» откроет второй ноутбук в той же сети.
+  server: {
+    host: values.lan ? true : 'localhost',
+    port: Number(values.port),
+    open: !values['no-open'],
+  },
 });
 await server.listen();
 const url = server.resolvedUrls?.local[0] ?? `http://localhost:${values.port}/`;
 console.log(`Игра ${rel(gameDir)} · разметка сохраняется в ${rel(join(gameDir, 'map.json'))}`);
-console.log(`Открыто: ${url} · Ctrl+C — выход`);
+console.log(`Открыто: ${url} · загадки: ${url.replace(/\/$/, '')}/riddles · Ctrl+C — выход`);
+if (values.lan) {
+  // 127.x — сам ноутбук, второму не пригодится.
+  const network = (server.resolvedUrls?.network ?? []).filter((u) => !/\/\/127\./.test(u));
+  if (network.length) {
+    console.log('Для второго ноутбука (та же сеть, например точка доступа iPhone):');
+    for (const u of network) console.log(`  ${u.replace(/\/$/, '')}/riddles`);
+    console.log(
+      'Брандмауэр macOS: на вопрос «разрешить входящие подключения» для node — «Разрешить»',
+    );
+    console.log(
+      '(или Системные настройки → Сеть → Брандмауэр → Параметры → node: разрешить). Проверьте дома заранее.',
+    );
+  } else {
+    console.log('△ Нет сети — подключите ноутбук к Wi-Fi или точке доступа и перезапустите.');
+  }
+}
