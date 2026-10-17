@@ -38,6 +38,7 @@
           "role",
           "lat",
           "lon",
+          "points",
           "prize",
           "serviceS"
         ],
@@ -69,6 +70,10 @@
             "type": "number",
             "minimum": -180,
             "maximum": 180
+          },
+          "points": {
+            "type": "number",
+            "minimum": 0
           },
           "prize": {
             "type": "number",

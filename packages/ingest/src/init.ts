@@ -7,7 +7,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { basename, extname, join } from 'node:path';
-import { Game, schemaErrors } from '@bgq/core';
+import { addMinutes, clockIn, DEFAULT_DURATION_MIN, Game, schemaErrors } from '@bgq/core';
 import { unzipSync } from 'fflate';
 import { parseNotion } from './parse.ts';
 
@@ -31,13 +31,30 @@ export interface InitOptions {
    * а если их нет — games/_template.
    */
   from?: string;
+  /** Начало пролога «ЧЧ:ММ» — у каждой команды своё; без него берётся из прошлой игры (с пометкой). */
+  start?: string;
+  /** «Сейчас» — момент получения комплекта (start.depart); для тестов. */
+  now?: Date;
 }
 
 /** Поле game.json, которое стоит проверить глазами, и откуда взято значение. */
 export interface CheckField {
   path: string;
   value: string | undefined;
-  origin: 'export' | 'previous' | 'missing';
+  origin:
+    | 'export'
+    | 'previous'
+    | 'missing'
+    /** из --start */
+    | 'arg'
+    /** из прошлой игры, хотя у каждой игры своё — вписать */
+    | 'stale'
+    /** старт + длительность игры */
+    | 'computed'
+    /** время запуска init — получили комплект */
+    | 'now'
+    /** в экспорте другое значение, взято не оно — проверить */
+    | 'conflict';
 }
 
 export interface InitResult {
@@ -91,7 +108,10 @@ export function initGame(o: InitOptions): InitResult {
         `В ${o.gamesDir} нет ни прошлой игры, ни ${TEMPLATE_DIR}/game.json — передайте --from <каталог с game.json>`,
       );
     }
-    ({ game, check } = gameFromPrevious(loadGame(join(from, 'game.json')), date, md.text));
+    ({ game, check } = gameFromPrevious(loadGame(join(from, 'game.json')), date, md.text, {
+      ...(o.start !== undefined && { start: o.start }),
+      now: o.now ?? new Date(),
+    }));
   }
 
   mkdirSync(gameDir, { recursive: true });
@@ -125,24 +145,34 @@ function findExport(gamesDir: string): string {
   return join(gamesDir, only);
 }
 
-/** game.json прошлой игры → новой: id/date, координаты сброшены, финиш — из экспорта, если найден. */
+/**
+ * game.json прошлой игры → новой: id/date, координаты сброшены. Старт — из --start (у каждой
+ * команды свой), дедлайн = старт + длительность игры (9 ч), комплект получен — сейчас (если
+ * init запущен в день игры после старта); штраф, опоздание и адрес финиша — из экспорта.
+ */
 function gameFromPrevious(
   prev: Game,
   date: string,
   md: string,
+  o: { start?: string; now: Date },
 ): { game: Game; check: CheckField[] } {
   const finish = parseNotion(md, prev).finish;
-  const { loc: _startLoc, ...start } = prev.start;
-  const { loc: _finishLoc, address: _prevAddress, ...prevFinish } = prev.finish;
+  const { address: _prevAddress, loc: _finishLoc, ...prevFinish } = prev.finish;
+  const durationMin = prev.durationMin ?? DEFAULT_DURATION_MIN;
+  const time = o.start ?? prev.start.time;
+  const deadline = addMinutes(time, durationMin);
+  const now = clockIn(prev.tz, o.now);
+  const depart = now.date === date && now.hhmm >= time ? now.hhmm : undefined;
 
   const game: Game = {
     ...prev,
     id: date,
     date,
-    start,
+    start: { time, ...(depart && { depart }) },
+    durationMin,
     finish: {
       ...prevFinish,
-      ...(finish?.deadline && { deadline: finish.deadline }),
+      deadline,
       ...(finish?.graceMin !== undefined && { graceMin: finish.graceMin }),
       ...(finish?.penaltyPerMin !== undefined && { penaltyPerMin: finish.penaltyPerMin }),
       ...(finish?.address && { address: finish.address }),
@@ -153,8 +183,12 @@ function gameFromPrevious(
     fromExport !== undefined ? 'export' : 'previous';
   const check: CheckField[] = [
     { path: 'city', value: game.city, origin: 'previous' },
-    { path: 'start.time', value: game.start.time, origin: 'previous' },
-    { path: 'finish.deadline', value: game.finish.deadline, origin: origin(finish?.deadline) },
+    { path: 'start.time', value: game.start.time, origin: o.start ? 'arg' : 'stale' },
+    { path: 'start.depart', value: game.start.depart, origin: depart ? 'now' : 'missing' },
+    { path: 'finish.deadline', value: game.finish.deadline, origin: 'computed' },
+    ...(finish?.deadline && finish.deadline !== deadline
+      ? [{ path: 'finish.deadline в Notion', value: finish.deadline, origin: 'conflict' as const }]
+      : []),
     {
       path: 'finish.graceMin',
       value: String(game.finish.graceMin),

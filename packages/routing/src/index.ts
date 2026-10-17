@@ -9,12 +9,15 @@ export {
 } from './matrix.ts';
 export {
   buildGraph,
+  cityGraphDir,
   dockerAvailable,
   GRAPH_RADIUS_M,
   type GraphMeta,
   graphReady,
   OSRM_IMAGE,
+  osrmRoute,
   osrmTable,
+  type RouteGeometry,
   RoutingError,
   readGraphMeta,
   type TableResult,
@@ -22,6 +25,7 @@ export {
 } from './osrm.ts';
 export {
   buildProblem,
+  departTime,
   FULL_PRIZE_CONFIDENCE,
   ProblemError,
   prizeOf,
@@ -29,3 +33,13 @@ export {
   serviceSeconds,
   tzOffset,
 } from './problem.ts';
+export {
+  clock,
+  DEPART_LAG_MIN,
+  defaultDepart,
+  planSummary,
+  problemHash,
+  runSolver,
+  SOLVER_DIR,
+  uvAvailable,
+} from './solve.ts';

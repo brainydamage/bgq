@@ -199,3 +199,59 @@ export async function osrmTable(
   }
   return { distanceM, snapM: json.sources.map((s) => Math.round(s.distance)) };
 }
+
+export interface RouteGeometry {
+  /** Линия по дорожкам через все точки по порядку: [lat, lon]. */
+  path: { lat: number; lon: number }[];
+  /** Длина по дорожкам, м. */
+  distanceM: number;
+}
+
+/**
+ * Пеший маршрут через точки по порядку (OSRM /route, профиль foot): геометрия для карты.
+ * Каждый отрезок начинается и кончается в самой точке — линия доходит до метки КП,
+ * а не обрывается у ближайшей дорожки.
+ */
+export async function osrmRoute(
+  baseUrl: string,
+  points: readonly { lat: number; lon: number }[],
+  fetchFn: typeof fetch = fetch,
+): Promise<RouteGeometry> {
+  if (points.length < 2) throw new RoutingError('OSRM /route: нужно хотя бы две точки');
+  const coords = points.map((p) => `${p.lon},${p.lat}`).join(';');
+  const res = await fetchFn(
+    `${baseUrl}/route/v1/foot/${coords}?overview=false&steps=true&geometries=geojson&continue_straight=false`,
+  );
+  const json = (await res.json()) as {
+    code: string;
+    message?: string;
+    routes?: {
+      distance: number;
+      legs: { steps: { geometry: { coordinates: [number, number][] } }[] }[];
+    }[];
+  };
+  const route = json.routes?.[0];
+  if (json.code !== 'Ok' || !route) {
+    throw new RoutingError(`OSRM /route: ${json.code} ${json.message ?? ''}`.trim());
+  }
+  const path: { lat: number; lon: number }[] = [];
+  const push = (lat: number, lon: number) => {
+    const last = path.at(-1);
+    if (!last || last.lat !== lat || last.lon !== lon) path.push({ lat, lon });
+  };
+  route.legs.forEach((leg, i) => {
+    const from = points[i];
+    const to = points[i + 1];
+    if (from) push(from.lat, from.lon);
+    for (const step of leg.steps) {
+      for (const [lon, lat] of step.geometry.coordinates) push(lat, lon);
+    }
+    if (to) push(to.lat, to.lon);
+  });
+  return { path, distanceM: Math.round(route.distance) };
+}
+
+/** Каталог пешеходного графа города: games/osm/osrm-<город>. */
+export function cityGraphDir(gamesDir: string, citySlug: string): string {
+  return join(gamesDir, 'osm', `osrm-${citySlug}`);
+}

@@ -1,0 +1,33 @@
+[project]
+name = "bgq-solver"
+version = "0.1.0"
+description = "OR-Tools солвер маршрута БеоГеоКвеста: problem.json → plan.json"
+requires-python = ">=3.13"
+dependencies = ["ortools>=9.15,<10"]
+
+[project.scripts]
+bgq-solve = "bgq_solver.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.13", "jsonschema>=4.23"]
+
+[build-system]
+requires = ["uv_build>=0.9,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv]
+# Как minimumReleaseAge у pnpm: пакеты моложе недели не берём.
+exclude-newer = "1 week"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# SWIG-обёртки OR-Tools на Python 3.14
+filterwarnings = ["ignore:builtin type .* has no __module__:DeprecationWarning"]

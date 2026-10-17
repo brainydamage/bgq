@@ -34,18 +34,19 @@ const problem: Problem = {
   gameId: '2026-10-10',
   t0: '2026-10-10T10:30:00+02:00',
   nodes: [
-    { kpId: null, role: 'start', lat: 44.9776, lon: 19.601, prize: 0, serviceS: 0 },
-    { kpId: '64', role: 'kp', lat: 44.97, lon: 19.61, prize: 6, serviceS: 300 },
+    { kpId: null, role: 'start', lat: 44.9776, lon: 19.601, points: 0, prize: 0, serviceS: 0 },
+    { kpId: '64', role: 'kp', lat: 44.97, lon: 19.61, points: 6, prize: 6, serviceS: 300 },
     {
       kpId: '99',
       role: 'kp',
       lat: 44.96,
       lon: 19.6,
+      points: 9,
       prize: 9,
       serviceS: 600,
       window: [12600, 27000],
     },
-    { kpId: null, role: 'finish', lat: 44.97, lon: 19.61, prize: 0, serviceS: 0 },
+    { kpId: null, role: 'finish', lat: 44.97, lon: 19.61, points: 0, prize: 0, serviceS: 0 },
   ],
   matrix: {
     source: 'haversine',

@@ -25,14 +25,16 @@ TypeScript/Node для всего, кроме OR-Tools солвера (Python). 
 - pnpm блокирует пакеты моложе политики `minimumReleaseAge` — не обходить исключениями, брать версию постарше.
 - **UI — Preact 10 + Vite** (без `@preact/preset-vite`: JSX через `oxc.jsx.importSource`). Тот же стек планируется для PWA.
 - **Docker Desktop** — OSRM (`ghcr.io/project-osrm/osrm-backend:v26.9.0-debian`) для пешеходной матрицы; без Docker `./bgq matrix` считает по прямой × 1,3. Тест с настоящим OSRM пропускается, если нет Docker или графа.
+- **Солвер — Python 3.14 + OR-Tools 9.15** в `solver/` через **uv** (`brew install uv`), **ruff** (линтер и форматтер), **pytest**. `[tool.uv] exclude-newer = "1 week"` — аналог `minimumReleaseAge`, не обходить. Контракт с TS — только `schemas/*.v1.schema.json`.
 - **osmium-tool** (`brew install osmium-tool`) — системная утилита для разбора выгрузки OSM (.osm.pbf); нужна `./bgq osm`. Тест с osmium пропускается, если утилиты нет.
 
 ## Структура
 - `packages/core` — типы, схемы, правило баллов, нормализация id.
 - `packages/ingest` — парсер Notion-markdown, overrides, CLI (`src/cli.ts`).
 - `packages/geo` — справочник адресов OSM (выгрузка Geofabrik + osmium), нечёткий поиск адресов, оценка против эталона, CLI (`src/cli.ts`).
-- `packages/routing` — граф OSRM, матрица расстояний, сборка `Problem` для солвера, CLI (`src/cli.ts`).
-- `packages/export` — экспорт `points.json` → KML для Organic Maps, CLI (`src/cli.ts`).
+- `packages/routing` — граф OSRM, матрица расстояний, сборка `Problem` для солвера, запуск солвера и сводка плана (`src/solve.ts`), CLI (`src/cli.ts`).
+- `packages/export` — экспорт `points.json` (+ `plan.json`: линия маршрута, номера по порядку) → KML для Organic Maps, CLI (`src/cli.ts`).
+- `solver/` — Python-солвер OR-Tools: `src/bgq_solver/model.py` (модель, портфель стратегий), `improve.py` (доработка после OR-Tools: «взять один — убрать два», relocate, 2-opt, ILS), `plan.py` (времена прямым проходом → `Plan`), `cli.py` (`bgq-solve`); тесты в `solver/tests/`.
 - `packages/table` — таблица точек: kps + geo + map + overrides → `points.json` (координаты: ручная правка → карта → адрес), CLI (`src/cli.ts`).
 - `packages/georef` — математика привязки фото карты: гомография, RANSAC, местная поправка, leave-one-out. Без DOM — работает в Node и браузере.
 - `apps/digitizer` — веб-приложение разметки кружков на фото карты (Vite + Preact). `server/` — запуск и API к каталогу игры (плагин Vite), `src/` — UI; `src/compute.ts` — расчёт координат (тестируется в Node). Свой `tsconfig.json` (DOM + JSX).
@@ -40,17 +42,18 @@ TypeScript/Node для всего, кроме OR-Tools солвера (Python). 
   - `games/<дата>/` — игра: `game.json`, `overrides.yaml`, экспорт, генерируемые `kps.json`/`report.json`/`geo.json`/`points.json`, фото карты `photos/` и разметка `map.json`. Играми считаются только папки-даты.
   - `games/_template/game.json` — образец конфига; `./bgq init` берёт его, если прошлых игр нет.
   - `games/osm/` — выгрузка OSM Сербии и справочники городов (кэш).
-- Данные прошлой игры для тестов (в т.ч. её `game.json` и `overrides.yaml`) — в `fixtures/<дата>/`.
+- Данные прошлой игры для тестов (в т.ч. её `game.json`, `overrides.yaml`, `problem.json` и итоги по протоколу `result.yaml`) — в `fixtures/<дата>/`.
 - `fixtures/<дата>/` — эталонные данные прошлых игр для тестов; руками не править.
 
 ## Команды
-- `./bgq init` — экспорт Notion (.zip/.md), положенный в `games/`, → `games/<сегодня>/` + первый прогон.
+- `./bgq init --start ЧЧ:ММ` — сразу после пролога: экспорт Notion (.zip/.md), положенный в `games/`, → `games/<сегодня>/` + первый прогон. `--start` — время старта пролога (у каждой команды своё): дедлайн = старт + 9 ч (`durationMin`), `start.depart` = сейчас (получили комплект).
 - `./bgq parse` — прогон последней игры с пересчётом при каждом сохранении.
 - `./bgq osm <город>` — накануне игры: выгрузка Сербии с Geofabrik (если её нет; `--refresh` — заново) → справочник `games/osm/<город>.json` и пешеходный граф OSRM `games/osm/osrm-<город>/` (Docker).
 - `./bgq geo` — координаты адресных КП → `games/<дата>/geo.json` (`--reference <yaml>` — сверка с эталоном).
 - `./bgq map` — digitizer в браузере: фото карты → кружки КП → `games/<дата>/map.json` (автосохранение).
 - `./bgq table` — kps + geo + map → `games/<дата>/points.json` (вход для маршрута); код выхода 1 — доступный КП без координат или нет старта/финиша.
-- `./bgq kml` — `points.json` → `games/<дата>/points.kml` для Organic Maps (`--all` — и недоступные).
+- `./bgq kml` — `points.json` → `games/<дата>/points.kml` для Organic Maps (`--all` — и недоступные); со свежим `plan.json` — ещё линия маршрута по улицам (OSRM в Docker; без него или `--straight` — прямые) и КП по порядку.
 - `./bgq matrix` — расстояния пешком между точками (OSRM; `--haversine` — по прямой) → `matrix.json`.
-- `./bgq problem` — `points.json` + `matrix.json` + `params.json` → `problem.json` для солвера.
-- `corepack pnpm check` — типы + линтер + тесты; `corepack pnpm format` — автоформат.
+- `./bgq problem` — `points.json` + `matrix.json` + `params.json` → `problem.json` для солвера; время — от выхода после пролога (`start.depart` в `game.json`, иначе от старта).
+- `./bgq solve` — `problem.json` → `plan.json` (OR-Tools + доработка, ~14 с) + сводка; выход по умолчанию — в день игры «сейчас + 2 мин», иначе от получения комплекта; `--depart ЧЧ:ММ` — явно, `--time С` — лимит поиска.
+- `corepack pnpm check` — типы + линтер + vitest + ruff + pytest (нужен uv); `check:py` — только Python; `corepack pnpm format` — автоформат (Biome + ruff).

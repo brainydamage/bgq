@@ -76,12 +76,14 @@ describe('initGame', () => {
     expect(readdirSync(gamesDir).sort()).toEqual(['2026-10-10', DATE]);
   });
 
-  it('game.json: id/date новые, координаты сброшены, финиш из экспорта', () => {
+  it('game.json: id/date новые, координаты сброшены, дедлайн = старт + 9 ч, финиш из экспорта', () => {
     dropExport('e.md', fixtureMd);
     initGame({ gamesDir, date: DATE });
     const game = readJson(join(gameDir(), 'game.json'));
     expect(game).toMatchObject({ id: DATE, date: DATE, city: 'Сремска Митровица' });
+    // Не день игры — комплект не «сейчас»: start.depart не ставится.
     expect(game.start).toEqual({ time: '10:30' });
+    expect(game.durationMin).toBe(540);
     expect(game.finish).toEqual({
       deadline: '19:30',
       graceMin: 30,
@@ -115,13 +117,38 @@ describe('initGame', () => {
     const r = initGame({ gamesDir, date: DATE });
     expect(Object.fromEntries(r.check.map((f) => [f.path, f.origin]))).toEqual({
       city: 'previous',
-      'start.time': 'previous',
-      'finish.deadline': 'export',
+      'start.time': 'stale',
+      'start.depart': 'missing',
+      'finish.deadline': 'computed',
       'finish.graceMin': 'export',
       'finish.penaltyPerMin': 'export',
       'finish.address': 'export',
       category: 'previous',
     });
+  });
+
+  it('--start в день игры: свой дедлайн, комплект — сейчас, другой дедлайн Notion — на проверку', () => {
+    dropExport('e.md', fixtureMd);
+    const r = initGame({
+      gamesDir,
+      date: DATE,
+      start: '09:44',
+      now: new Date('2026-12-05T11:47:00Z'), // 12:47 в Белграде (зимнее время, +01:00)
+    });
+    const game = readJson(join(gameDir(), 'game.json'));
+    expect(game.start).toEqual({ time: '09:44', depart: '12:47' });
+    expect(game.finish.deadline).toBe('18:44');
+    const check = Object.fromEntries(r.check.map((f) => [f.path, [f.value, f.origin]]));
+    expect(check['start.time']).toEqual(['09:44', 'arg']);
+    expect(check['start.depart']).toEqual(['12:47', 'now']);
+    expect(check['finish.deadline']).toEqual(['18:44', 'computed']);
+    expect(check['finish.deadline в Notion']).toEqual(['19:30', 'conflict']);
+  });
+
+  it('init раньше старта — комплект ещё не получен, start.depart не ставится', () => {
+    dropExport('e.md', fixtureMd);
+    initGame({ gamesDir, date: DATE, start: '10:30', now: new Date('2026-12-05T08:00:00Z') });
+    expect(readJson(join(gameDir(), 'game.json')).start).toEqual({ time: '10:30' });
   });
 
   it('без блока финиша: адрес прошлой игры не переносится', () => {
@@ -131,7 +158,7 @@ describe('initGame', () => {
     expect(game.finish.address).toBeUndefined();
     expect(game.finish.deadline).toBe('19:30');
     expect(r.check.find((f) => f.path === 'finish.address')?.origin).toBe('missing');
-    expect(r.check.find((f) => f.path === 'finish.deadline')?.origin).toBe('previous');
+    expect(r.check.find((f) => f.path === 'finish.deadline')?.origin).toBe('computed');
   });
 
   it('zip внутри zip', () => {

@@ -2,7 +2,8 @@
 // ./bgq osm <город> — (после справочника адресов) пешеходный граф OSRM для города.
 // ./bgq matrix [--date] [--haversine] — points.json → matrix.json (расстояния пешком).
 // ./bgq problem [--date] — points.json + matrix.json + params → problem.json для солвера.
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+// ./bgq solve [--date] [--time С] [--depart ЧЧ:ММ] — problem.json → plan.json (OR-Tools).
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import {
@@ -10,6 +11,7 @@ import {
   type Game,
   type Params,
   Params as ParamsSchema,
+  Plan,
   PointsFile,
   Problem,
   schemaErrors,
@@ -19,6 +21,7 @@ import { currentGameDir, InitError, loadGame } from '@bgq/ingest';
 import { haversineTable, type MatrixFile, matrixFile, routePoints, SNAP_WARN_M } from './matrix.ts';
 import {
   buildGraph,
+  cityGraphDir,
   dockerAvailable,
   graphReady,
   OSRM_IMAGE,
@@ -27,7 +30,8 @@ import {
   readGraphMeta,
   withOsrm,
 } from './osrm.ts';
-import { buildProblem, ProblemError } from './problem.ts';
+import { buildProblem, departTime, ProblemError } from './problem.ts';
+import { DEPART_LAG_MIN, defaultDepart, planSummary, problemHash, runSolver } from './solve.ts';
 
 const GAMES_DIR = resolve(import.meta.dirname, '../../../games');
 const PBF_NAME = 'serbia-latest.osm.pbf';
@@ -36,6 +40,10 @@ const USAGE = [
   'usage:',
   '  ./bgq matrix [--date ГГГГ-ММ-ДД] [--haversine]   расстояния пешком → matrix.json',
   '  ./bgq problem [--date ГГГГ-ММ-ДД]               задача для солвера → problem.json',
+  '  ./bgq solve [--date ГГГГ-ММ-ДД] [--time С] [--depart ЧЧ:ММ]',
+  '                                                  маршрут OR-Tools → plan.json',
+  '    --time — лимит поиска каждой стратегии, с (10)',
+  '    --depart — время выхода; по умолчанию в день игры — сейчас + 2 мин, иначе — получение комплекта',
   '  (граф OSRM готовит ./bgq osm <город> — накануне игры; нужен Docker Desktop)',
 ].join('\n');
 
@@ -51,8 +59,7 @@ function rel(path: string): string {
 }
 
 const readJson = <T>(path: string): T => JSON.parse(readFileSync(path, 'utf8')) as T;
-const graphDir = (gamesDir: string, city: string) =>
-  join(gamesDir, 'osm', `osrm-${citySlug(city)}`);
+const graphDir = (gamesDir: string, city: string) => cityGraphDir(gamesDir, citySlug(city));
 const km = (m: number) => `${(m / 1000).toFixed(1).replace('.', ',')} км`;
 
 function gameDirOf(gamesDir: string, date?: string): string {
@@ -193,8 +200,9 @@ function runProblem(gamesDir: string, o: { date?: string }): number {
 
   const kps = problem.nodes.filter((n) => n.role === 'kp');
   const prize = kps.reduce((s, n) => s + n.prize, 0);
+  const depart = departTime(game);
   const hhmm = (s: number) => {
-    const [h, m] = game.start.time.split(':').map(Number);
+    const [h, m] = depart.split(':').map(Number);
     const total = (h ?? 0) * 60 + (m ?? 0) + Math.round(s / 60);
     return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
   };
@@ -206,10 +214,58 @@ function runProblem(gamesDir: string, o: { date?: string }): number {
     `КП ${kps.length} · ценность ${Math.round(prize * 10) / 10} (баллы; меньше — только у КП с неточными координатами) · матрица ${problem.matrix.source}`,
   );
   console.log(
-    `старт ${game.start.time} · финиш до ${game.finish.deadline} (+${game.finish.graceMin} мин, −${game.finish.penaltyPerMin} б/мин) · скорость ${params.speedKmh} км/ч · на точке ${params.serviceMin.default} мин`,
+    `${game.start.depart ? `старт ${game.start.time}, выход после пролога ${depart}` : `выход со старта ${depart}`} · финиш до ${game.finish.deadline} (+${game.finish.graceMin} мин, −${game.finish.penaltyPerMin} б/мин) · скорость ${params.speedKmh} км/ч · на точке ${params.serviceMin.default} мин`,
   );
   if (windows.length) console.log(`окна: ${windows.join(', ')}`);
   console.log(`→ ${rel(outPath)}`);
+  return 0;
+}
+
+function runSolve(gamesDir: string, o: { date?: string; time?: string; depart?: string }): number {
+  const gameDir = gameDirOf(gamesDir, o.date);
+  const problemPath = join(gameDir, 'problem.json');
+  if (!existsSync(problemPath)) fail(`✗ Нет ${rel(problemPath)} — сначала ./bgq problem`);
+  const mtime = (name: string) => {
+    const path = join(gameDir, name);
+    return existsSync(path) ? statSync(path).mtimeMs : 0;
+  };
+  const newer = ['points.json', 'matrix.json', 'params.json'].filter(
+    (name) => mtime(name) > mtime('problem.json'),
+  );
+  if (newer.length) {
+    fail(
+      `✗ ${rel(problemPath)} старее ${newer.join(', ')} — пересоберите: ./bgq matrix (если менялись точки), ./bgq problem`,
+    );
+  }
+  const raw = readFileSync(problemPath);
+  const problem: unknown = JSON.parse(raw.toString('utf8'));
+  const problemErrors = schemaErrors(Problem, problem);
+  if (problemErrors.length) {
+    fail(`✗ ${rel(problemPath)}: ${problemErrors.join('; ')} — пересоберите ./bgq problem`);
+  }
+  if (o.depart && !/^\d{1,2}:\d{2}$/.test(o.depart)) fail(`✗ --depart: ожидается ЧЧ:ММ`);
+  const p = problem as Problem;
+  const game = loadGame(join(gameDir, 'game.json'));
+  const now = o.depart ? undefined : defaultDepart(p.t0, game.tz);
+  const depart = o.depart ?? now;
+  const timeS = o.time === undefined ? undefined : Number(o.time);
+  if (timeS !== undefined && !(timeS > 0)) fail(`✗ --time: ожидается число секунд > 0`);
+
+  const planPath = join(gameDir, 'plan.json');
+  const from = now
+    ? `сейчас + ${DEPART_LAG_MIN} мин: ${now}`
+    : (depart ?? `${p.t0.slice(11, 16)} (получили комплект)`);
+  console.log(`Игра ${rel(gameDir)} · КП ${p.nodes.length - 2} · выход ${from} · ищу маршрут…`);
+  runSolver({ problemPath, planPath, timeS, ...(depart && { depart }) });
+
+  const plan: unknown = readJson(planPath);
+  const planErrors = schemaErrors(Plan, plan);
+  if (planErrors.length) fail(`✗ plan.json не проходит схему: ${planErrors.join('; ')}`);
+  if ((plan as Plan).problemHash !== problemHash(raw)) {
+    fail('✗ plan.json построен не по этому problem.json (problem.json изменился во время поиска?)');
+  }
+  for (const line of planSummary(plan as Plan, p)) console.log(line);
+  console.log(`→ ${rel(planPath)} · ./bgq kml — маршрут на карту`);
   return 0;
 }
 
@@ -235,6 +291,8 @@ async function main(): Promise<void> {
       process.exitCode = await runMatrix(gamesDir, args.values);
     } else if (command === 'problem') {
       process.exitCode = runProblem(gamesDir, args.values);
+    } else if (command === 'solve') {
+      process.exitCode = runSolve(gamesDir, args.values);
     } else {
       fail(USAGE);
     }
@@ -252,6 +310,8 @@ function parse() {
       games: { type: 'string' },
       haversine: { type: 'boolean', default: false },
       refresh: { type: 'boolean', default: false },
+      time: { type: 'string' },
+      depart: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
   });

@@ -9,7 +9,8 @@
   "dependencies": {
     "@bgq/core": "workspace:*",
     "@bgq/geo": "workspace:*",
-    "@bgq/ingest": "workspace:*"
+    "@bgq/ingest": "workspace:*",
+    "@bgq/routing": "workspace:*"
   },
   "devDependencies": {
     "@bgq/table": "workspace:*"

@@ -24,7 +24,22 @@ export const Game = Type.Object(
     city: Type.String(),
     date: IsoDate,
     tz: Type.String({ minLength: 1 }),
-    start: Type.Object({ time: HHMM, loc: Type.Optional(Loc) }, { additionalProperties: false }),
+    start: Type.Object(
+      {
+        /** Начало пролога — у каждой команды своё, известно только в день игры. */
+        time: HHMM,
+        /**
+         * Получили комплект основной игры (Notion, карта, листки) — после пролога, длину
+         * которого выбираем сами (10.10: старт 10:30, комплект в 12:30). От него считается
+         * маршрут (t0 задачи); нет — сразу со старта.
+         */
+        depart: Type.Optional(HHMM),
+        loc: Type.Optional(Loc),
+      },
+      { additionalProperties: false },
+    ),
+    /** Длительность всей игры от старта пролога, мин (9 ч); дедлайн = старт + длительность. */
+    durationMin: Type.Optional(Type.Integer({ minimum: 1 })),
     finish: Type.Object(
       {
         deadline: HHMM,

@@ -7,7 +7,7 @@
 import { existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import type { Game } from '@bgq/core';
+import { type Game, normalizeHhmm } from '@bgq/core';
 import { ingest } from './ingest.ts';
 import {
   type CheckField,
@@ -26,7 +26,8 @@ const GAMES_DIR = resolve(import.meta.dirname, '../../../games');
 
 const USAGE = [
   'usage:',
-  '  ./bgq init    экспорт Notion (.zip или .md) из games/ → games/<сегодня>/ + первый прогон',
+  '  ./bgq init --start ЧЧ:ММ   сразу после пролога: экспорт Notion (.zip или .md) из games/ →',
+  '                games/<сегодня>/ + первый прогон; --start — ваше время старта пролога',
   '  ./bgq parse   прогон последней игры, пересчёт при каждом сохранении (Ctrl+C — выход)',
   '  ./bgq osm <город>  накануне игры: справочник адресов и пешеходный граф OSRM',
   '  ./bgq geo     координаты адресных КП по справочнику OSM → geo.json (./bgq geo --help)',
@@ -38,7 +39,7 @@ const USAGE = [
   '  ./bgq <notion.md> [--game <games/дата>] [--out <каталог>] [--watch]',
   '',
   'опции init/parse: --date ГГГГ-ММ-ДД (по умолчанию сегодня / последняя игра),',
-  '                  --games <каталог>, --from <games/прошлая> (только init)',
+  '                  --games <каталог>, --from <games/прошлая>, --start ЧЧ:ММ (только init)',
   '--game по умолчанию — каталог .md, если в нём есть game.json.',
 ].join('\n');
 
@@ -57,10 +58,13 @@ function main(): void {
   if (first === 'init') {
     if (rest.length) fail(`init не принимает аргументов, получено: ${rest.join(' ')}\n${USAGE}`);
     const { date, from, games } = args.values;
+    const start = args.values.start === undefined ? undefined : normalizeHhmm(args.values.start);
+    if (start === null) fail(`--start: ожидается ЧЧ:ММ, например 9:44\n${USAGE}`);
     process.exitCode = runInit({
       gamesDir: resolve(games ?? GAMES_DIR),
       ...(date !== undefined && { date }),
       ...(from !== undefined && { from: resolve(from) }),
+      ...(start !== undefined && { start }),
     });
     return;
   }
@@ -104,6 +108,7 @@ function parse() {
       watch: { type: 'boolean', default: false },
       date: { type: 'string' },
       from: { type: 'string' },
+      start: { type: 'string' },
       games: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },
@@ -156,7 +161,12 @@ function runInit(options: InitOptions): number {
 const ORIGIN: Record<CheckField['origin'], string> = {
   export: 'из экспорта',
   previous: 'из прошлой игры',
-  missing: 'не найдено в экспорте — впишите',
+  missing: 'не найдено — впишите',
+  arg: 'из --start',
+  stale: 'ИЗ ПРОШЛОЙ ИГРЫ — у вас свой старт: впишите или ./bgq init --start ЧЧ:ММ',
+  computed: 'старт + длительность игры (durationMin)',
+  now: 'сейчас — получили комплект (выход на маршрут)',
+  conflict: 'в Notion другой дедлайн — проверьте, какой верный',
 };
 
 function formatCheck(fields: CheckField[]): string {

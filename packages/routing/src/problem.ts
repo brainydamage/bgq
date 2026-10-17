@@ -46,9 +46,15 @@ export function prizeOf(points: number, confidence: number): number {
   return Math.round(points * factor * 100) / 100;
 }
 
+/** Выход на маршрут «ЧЧ:ММ»: после пролога (start.depart), иначе — время старта. */
+export function departTime(game: Pick<Game, 'start'>): string {
+  return game.start.depart ?? game.start.time;
+}
+
 /**
  * Problem для солвера: узлы (старт, финиш, доступные КП), матрица времени пешком
- * (расстояние ÷ скорость из params), дедлайн и окна — в секундах от старта.
+ * (расстояние ÷ скорость из params), дедлайн и окна — в секундах от выхода на маршрут
+ * (после пролога; t0 = выход).
  * Ценность КП — prizeOf (баллы, уменьшенные только при неточных координатах).
  */
 export function buildProblem(o: {
@@ -75,7 +81,10 @@ export function buildProblem(o: {
     );
   }
 
-  const start = game.start.time;
+  const start = departTime(game);
+  if (secondsFrom(game.start.time, start) < 0) {
+    throw new ProblemError(`выход ${start} раньше старта ${game.start.time} — проверьте game.json`);
+  }
   const clampS = (s: number) => Math.max(0, s);
   const nodes: ProblemNode[] = [
     {
@@ -83,6 +92,7 @@ export function buildProblem(o: {
       role: 'start',
       lat: points.start.lat,
       lon: points.start.lon,
+      points: 0,
       prize: 0,
       serviceS: 0,
     },
@@ -91,6 +101,7 @@ export function buildProblem(o: {
       role: 'finish',
       lat: points.finish.lat,
       lon: points.finish.lon,
+      points: 0,
       prize: 0,
       serviceS: 0,
     },
@@ -101,6 +112,7 @@ export function buildProblem(o: {
         role: 'kp',
         lat: loc.lat,
         lon: loc.lon,
+        points: k.points,
         prize: prizeOf(k.points, loc.confidence),
         serviceS: serviceSeconds(k, params),
         ...(k.window && {

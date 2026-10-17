@@ -3,6 +3,12 @@ node_modules/
 *.log
 .idea/
 
+# Python (solver/)
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+
 # games/ — рабочая папка: экспорты Notion, игры по датам, выгрузка и справочники OSM.
 # В git только шаблон game.json; данные прошлых игр для тестов — в fixtures/<дата>/.
 games/*

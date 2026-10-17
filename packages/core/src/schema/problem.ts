@@ -9,7 +9,9 @@ export const ProblemNode = Type.Object(
     role: Type.Enum(['start', 'finish', 'kp']),
     lat: Type.Number({ minimum: -90, maximum: 90 }),
     lon: Type.Number({ minimum: -180, maximum: 180 }),
-    /** Ожидаемая ценность: баллы × уверенность. Солверы правил баллов не знают. */
+    /** Баллы КП в протоколе (0 у старта и финиша) — для totalPoints плана. */
+    points: Type.Number({ minimum: 0 }),
+    /** Ожидаемая ценность: баллы × уверенность. Солверы правил баллов не знают — максимизируют её. */
     prize: Type.Number({ minimum: 0 }),
     serviceS: Seconds,
     /** [открытие, закрытие] в секундах от t0. */

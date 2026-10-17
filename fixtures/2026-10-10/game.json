@@ -3,7 +3,8 @@
   "city": "Сремска Митровица",
   "date": "2026-10-10",
   "tz": "Europe/Belgrade",
-  "start": { "time": "10:30" },
+  "start": { "time": "10:30", "depart": "12:30" },
+  "durationMin": 540,
   "finish": {
     "deadline": "19:30",
     "graceMin": 30,
