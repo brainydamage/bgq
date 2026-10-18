@@ -23,13 +23,13 @@ TypeScript/Node для всего, кроме OR-Tools солвера (Python). 
 - **Vitest** — тесты в `packages/*/test/`; **Biome** — линтер и форматтер.
 - **TypeBox** — схемы в `packages/core/src/schema/`; из них генерируются `schemas/*.v1.schema.json` (draft-07, контракт с Python). После правки схем: `corepack pnpm schemas`, тест проверяет актуальность файлов.
 - pnpm блокирует пакеты моложе политики `minimumReleaseAge` — не обходить исключениями, брать версию постарше.
-- **UI — Preact 10 + Vite** (без `@preact/preset-vite`: JSX через `oxc.jsx.importSource`). Тот же стек планируется для PWA.
+- **UI — Preact 10 + Vite** (без `@preact/preset-vite`: JSX через `oxc.jsx.importSource`). PWA (`apps/pwa`) — тот же стек, service worker свой (без Workbox/vite-plugin-pwa). Офлайн — только по HTTPS или localhost, поэтому оболочка PWA на GitHub Pages, а данные игры — файлом.
 - **Docker Desktop** — OSRM (`ghcr.io/project-osrm/osrm-backend:v26.9.0-debian`) для пешеходной матрицы; без Docker `./bgq matrix` считает по прямой × 1,3. Тест с настоящим OSRM пропускается, если нет Docker или графа.
 - **Солвер — Python 3.14 + OR-Tools 9.15** в `solver/` через **uv** (`brew install uv`), **ruff** (линтер и форматтер), **pytest**. `[tool.uv] exclude-newer = "1 week"` — аналог `minimumReleaseAge`, не обходить. Контракт с TS — только `schemas/*.v1.schema.json`.
 - **osmium-tool** (`brew install osmium-tool`) — системная утилита для разбора выгрузки OSM (.osm.pbf); нужна `./bgq osm`. Тест с osmium пропускается, если утилиты нет.
 
 ## Структура
-- `packages/core` — типы, схемы, правило баллов, нормализация id, загадки (`riddles.ts`: разбор расшифровки листков и координат отгадки).
+- `packages/core` — типы, схемы, правило баллов, нормализация id, загадки (`riddles.ts`: разбор расшифровки листков и координат отгадки), состояние из событий (`state.ts`: `projectState`), данные для телефона (`phone.ts` → `phone.json`).
 - `packages/ingest` — парсер Notion-markdown, overrides, CLI (`src/cli.ts`).
 - `packages/geo` — справочник адресов OSM (выгрузка Geofabrik + osmium), нечёткий поиск адресов, оценка против эталона, CLI (`src/cli.ts`).
 - `packages/routing` — граф OSRM, матрица расстояний, сборка `Problem` для солвера, запуск солвера и сводка плана (`src/solve.ts`), CLI (`src/cli.ts`).
@@ -38,8 +38,9 @@ TypeScript/Node для всего, кроме OR-Tools солвера (Python). 
 - `packages/table` — таблица точек: kps + geo + map + overrides → `points.json` (координаты: ручная правка → карта → адрес), CLI (`src/cli.ts`).
 - `packages/georef` — математика привязки фото карты: гомография, RANSAC, местная поправка, leave-one-out. Без DOM — работает в Node и браузере.
 - `apps/digitizer` — веб-приложение разметки кружков на фото карты (Vite + Preact). `server/` — запуск и API к каталогу игры (плагин Vite), `src/` — UI; `src/compute.ts` — расчёт координат (тестируется в Node). Свой `tsconfig.json` (DOM + JSX).
+- `apps/pwa` — PWA для телефона (Vite + Preact, IndexedDB, свой service worker `src/sw.ts`, собирается плагином в `vite.config.ts`). Первый экран — чек-лист заданий без места; логика — `src/checklist.ts` (тестируется в Node), события — `src/events.ts`, хранилище — `src/db.ts`. `server/cli.ts` — `./bgq pwa`. Свой `tsconfig.json` (DOM + JSX). Оболочка — на GitHub Pages (`.github/workflows/pwa.yml`, `base: './'`), данных игры в сборке нет.
 - `games/` — рабочая папка, **в git не идёт ничего, кроме `games/_template/game.json`**:
-  - `games/<дата>/` — игра: `game.json`, `overrides.yaml`, экспорт, генерируемые `kps.json`/`report.json`/`geo.json`/`points.json`, фото карты `photos/` и разметка `map.json`, загадки `riddles.json` и фото листков `riddles/`. Играми считаются только папки-даты.
+  - `games/<дата>/` — игра: `game.json`, `overrides.yaml`, экспорт, генерируемые `kps.json`/`report.json`/`geo.json`/`points.json`/`phone.json`, фото карты `photos/` и разметка `map.json`, загадки `riddles.json` и фото листков `riddles/`. Играми считаются только папки-даты.
   - `games/_template/game.json` — образец конфига; `./bgq init` берёт его, если прошлых игр нет.
   - `games/osm/` — выгрузка OSM Сербии и справочники городов (кэш).
 - Данные прошлой игры для тестов (в т.ч. её `game.json`, `overrides.yaml`, `problem.json` и итоги по протоколу `result.yaml`) — в `fixtures/<дата>/`.
@@ -51,6 +52,7 @@ TypeScript/Node для всего, кроме OR-Tools солвера (Python). 
 - `./bgq osm <город>` — накануне игры: выгрузка Сербии с Geofabrik (если её нет; `--refresh` — заново) → справочник `games/osm/<город>.json` и пешеходный граф OSRM `games/osm/osrm-<город>/` (Docker).
 - `./bgq geo` — координаты адресных КП → `games/<дата>/geo.json` (`--reference <yaml>` — сверка с эталоном).
 - `./bgq map` — digitizer в браузере: фото карты → кружки КП → `games/<дата>/map.json` (автосохранение). Страница `/riddles` — загадки (вставка расшифровки листков, заметки, отгадки координатами) и задания без места с баллами (чек-лист для поля) → `riddles.json`; `--lan` — открыть для второго ноутбука.
+- `./bgq pwa` — `game.json` + `riddles.json` → `games/<дата>/phone.json` для телефона (AirDrop → «Сохранить в Файлы» → в приложении «Загрузить игру»). `dev` — приложение на ноутбуке (`?load=phone.json` подгружает игру); `build` — сборка в `apps/pwa/dist`; `preview` — сборка + localhost с service worker (проверка офлайна). `--lan` — по http, **без офлайна**: только посмотреть с телефона.
 - `./bgq route` — после отгадки или правки карты: table → matrix → problem → solve → kml (~17 с).
 - `./bgq table` — kps + geo + map → `games/<дата>/points.json` (вход для маршрута); код выхода 1 — доступный КП без координат или нет старта/финиша.
 - `./bgq kml` — `points.json` → `games/<дата>/points.kml` для Organic Maps (`--all` — и недоступные); со свежим `plan.json` — ещё линия маршрута по улицам (OSRM в Docker; без него или `--straight` — прямые) и КП по порядку.

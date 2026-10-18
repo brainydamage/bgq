@@ -1,0 +1,17 @@
+{
+  "name": "@bgq/pwa",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@bgq/core": "workspace:*",
+    "preact": "10.29.8"
+  },
+  "devDependencies": {
+    "@bgq/ingest": "workspace:*",
+    "vite": "8.3.4"
+  }
+}

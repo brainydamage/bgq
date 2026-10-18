@@ -5,6 +5,7 @@ import { Event } from './schema/event.ts';
 import { Game } from './schema/game.ts';
 import { Kp } from './schema/kp.ts';
 import { Params } from './schema/params.ts';
+import { PhoneGame } from './schema/phone.ts';
 import { Plan } from './schema/plan.ts';
 import { Problem } from './schema/problem.ts';
 import { RiddlesFile } from './schema/riddle.ts';
@@ -24,6 +25,7 @@ export const schemas = {
   map: MapFileResults,
   params: Params,
   riddles: RiddlesFile,
+  phone: PhoneGame,
 } as const satisfies Record<string, TSchema>;
 
 export type SchemaName = keyof typeof schemas;

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Короткий вход в инструменты: ./bgq init | parse | osm <город> | geo | map | table | kml | matrix | problem | solve | route | --help
+# Короткий вход в инструменты: ./bgq init | parse | osm <город> | geo | map | pwa | table | kml | matrix | problem | solve | route | --help
 set -e
 root=$(cd "$(dirname "$0")" && pwd)
 
@@ -21,6 +21,7 @@ case "$1" in
   osm) node "$root/packages/geo/src/cli.ts" "$@" && exec node "$root/packages/routing/src/cli.ts" "$@" ;;
   matrix | problem | solve) exec node "$root/packages/routing/src/cli.ts" "$@" ;;
   map) shift; exec node "$root/apps/digitizer/server/start.ts" "$@" ;;
+  pwa) shift; exec node "$root/apps/pwa/server/cli.ts" "$@" ;;
   table) shift; exec node "$root/packages/table/src/cli.ts" "$@" ;;
   kml) shift; exec node "$root/packages/export/src/cli.ts" "$@" ;;
   route)

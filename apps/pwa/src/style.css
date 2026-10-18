@@ -1,0 +1,334 @@
+:root {
+  --bg: #f6f7f8;
+  --card: #ffffff;
+  --text: #16191d;
+  --muted: #69717c;
+  --line: #dde1e6;
+  --accent: #0f766e;
+  --accent-soft: #d8efec;
+  --warn: #b45309;
+  --warn-soft: #fff4dc;
+  --error: #b42318;
+  --error-soft: #fde8e7;
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101214;
+    --card: #1b1e22;
+    --text: #eceef0;
+    --muted: #9aa2ac;
+    --line: #2d3238;
+    --accent: #2dd4bf;
+    --accent-soft: #123a36;
+    --warn: #fbbf24;
+    --warn-soft: #3a2e10;
+    --error: #f87171;
+    --error-soft: #3b1717;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.app {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 max(12px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
+}
+
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg);
+  padding: max(12px, env(safe-area-inset-top)) 0 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+h1 {
+  font-size: 24px;
+  margin: 0;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 13px;
+}
+
+.summary {
+  margin: 6px 0 10px;
+  font-weight: 600;
+}
+
+.filter {
+  display: flex;
+  gap: 6px;
+}
+
+.filter button {
+  flex: 1;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.filter button[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.update {
+  display: block;
+  width: 100%;
+  margin-top: max(8px, env(safe-area-inset-top));
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.error,
+.note-msg {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.error {
+  background: var(--error-soft);
+  color: var(--error);
+}
+
+.note-msg {
+  background: var(--accent-soft);
+}
+
+.reminder {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--warn-soft);
+  border: 1px solid var(--warn);
+}
+
+.reminder ul {
+  margin: 6px 0 0;
+  padding-left: 4px;
+  list-style: none;
+}
+
+.warn {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.empty {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: var(--card);
+  border-radius: 12px;
+}
+
+.empty code {
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.tasks {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.task {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.task.done {
+  border-color: var(--accent);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+}
+
+.check {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 8px 0 8px 8px;
+  border: 2px solid var(--muted);
+  border-radius: 10px;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Настоящий checkbox — поверх квадрата, прозрачный: тап, клавиатура, VoiceOver. */
+.check input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.check:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.task.done .check {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.head {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.task.done .name {
+  color: var(--muted);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.pts {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.flag {
+  color: var(--warn);
+}
+
+.time {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.note-preview {
+  font-size: 14px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.details {
+  padding: 0 12px 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+}
+
+.field {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  /* 16px+ — иначе iOS увеличивает страницу при фокусе. */
+  font-size: 17px;
+}
+
+.field input[type="time"] {
+  width: auto;
+  min-width: 120px;
+}
+
+.all-done {
+  padding: 16px;
+  text-align: center;
+}
+
+.bottom {
+  margin-top: 20px;
+}
+
+.load {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--accent);
+  font-weight: 600;
+}

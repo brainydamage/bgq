@@ -201,6 +201,22 @@ importers:
         specifier: 8.3.4
         version: 8.3.4(@types/node@24.19.2)(yaml@2.9.1)
 
+  apps/pwa:
+    dependencies:
+      '@bgq/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      preact:
+        specifier: 10.29.8
+        version: 10.29.8
+    devDependencies:
+      '@bgq/ingest':
+        specifier: workspace:*
+        version: link:../../packages/ingest
+      vite:
+        specifier: 8.3.4
+        version: 8.3.4(@types/node@24.19.2)(yaml@2.9.1)
+
   packages/core:
     dependencies:
       typebox:

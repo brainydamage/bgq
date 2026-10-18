@@ -6,6 +6,12 @@
       "runtimeExecutable": "./bgq",
       "runtimeArgs": ["map", "--no-open"],
       "port": 5173
+    },
+    {
+      "name": "pwa-preview",
+      "runtimeExecutable": "./bgq",
+      "runtimeArgs": ["pwa", "preview", "--no-open", "--port", "5174"],
+      "port": 5174
     }
   ]
 }

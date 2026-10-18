@@ -9,12 +9,12 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p . && tsc -p apps/digitizer",
+    "typecheck": "tsc -p . && tsc -p apps/digitizer && tsc -p apps/pwa",
     "lint": "biome check .",
     "format": "biome check --write . && cd solver && uv run ruff format . && uv run ruff check --fix .",
     "schemas": "node packages/core/scripts/gen-schemas.ts",
     "ingest": "node packages/ingest/src/cli.ts",
-    "check": "tsc -p . && tsc -p apps/digitizer && biome check . && vitest run && cd solver && uv run ruff check . && uv run ruff format --check . && uv run pytest -q",
+    "check": "tsc -p . && tsc -p apps/digitizer && tsc -p apps/pwa && biome check . && vitest run && cd solver && uv run ruff check . && uv run ruff format --check . && uv run pytest -q",
     "check:py": "cd solver && uv run ruff check . && uv run ruff format --check . && uv run pytest -q"
   },
   "devDependencies": {
