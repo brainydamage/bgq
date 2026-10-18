@@ -513,6 +513,24 @@
         }
       },
       "additionalProperties": false
+    },
+    "sync": {
+      "type": "object",
+      "required": [
+        "url",
+        "code"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^(https://|http://localhost[:/])"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 16
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

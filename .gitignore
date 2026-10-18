@@ -14,3 +14,10 @@ __pycache__/
 # В git только шаблон game.json; данные прошлых игр для тестов — в fixtures/<дата>/.
 games/*
 !games/_template/
+
+# infra/ (Terraform): сборка Lambda, провайдеры, состояние (в нём код команды) — не в git.
+infra/build/
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/*.tfvars

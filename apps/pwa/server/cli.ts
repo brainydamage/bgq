@@ -11,6 +11,7 @@ import {
   phoneGame,
   planMissing,
   RiddlesFile,
+  SyncConfig,
   schemaErrors,
 } from '@bgq/core';
 import { currentGameDir, InitError, loadGame } from '@bgq/ingest';
@@ -24,7 +25,8 @@ const CONFIG = join(APP_DIR, 'vite.config.ts');
 const USAGE = [
   'usage: ./bgq pwa [dev|build|preview] [--date ГГГГ-ММ-ДД] [--port N] [--lan] [--no-open]',
   '  (без команды) game.json + riddles.json + points.json + plan.json → games/<дата>/phone.json',
-  '           — на iPhone по AirDrop; устаревший план (как у ./bgq kml) не кладётся',
+  '           — на iPhone по AirDrop; устаревший план (как у ./bgq kml) не кладётся;',
+  '           games/sync.json (адрес и код синхронизации, terraform output) — тоже в phone.json',
   '  dev      — приложение на ноутбуке с пересборкой (без офлайна); phone.json подгружается сам',
   '  build    — сборка в apps/pwa/dist (то же, что выкладывает GitHub Actions на Pages)',
   '  preview  — сборка + раздача на localhost: проверка офлайна (service worker)',
@@ -108,7 +110,19 @@ function exportPhone(): Exported {
       warnings.push(`в плане КП не с этой карты: ${missing.join(', ')} — план не добавлен`);
     route = { points, ...(plan && !missing.length && { plan }) };
   }
-  const phone = phoneGame(game, riddles, new Date().toISOString(), route);
+  // Адрес и код синхронизации — общие для всех игр: terraform -chdir=infra output -json sync.
+  const sync = readJson<SyncConfig>(
+    join(resolve(values.games ?? GAMES_DIR), 'sync.json'),
+    SyncConfig,
+  );
+  if (!sync)
+    warnings.push(
+      'нет games/sync.json — телефоны не увидят отметок друг друга (terraform -chdir=infra output -json sync > games/sync.json)',
+    );
+  const phone = {
+    ...phoneGame(game, riddles, new Date().toISOString(), route),
+    ...(sync && { sync }),
+  };
   const path = join(gameDir, 'phone.json');
   writeFileSync(path, `${JSON.stringify(phone, null, 2)}\n`);
   return { path, phone, warnings };
@@ -121,6 +135,7 @@ function printExport({ path, phone, warnings }: Exported) {
     `${rel(path)}: ${phone.city}, ${phone.date} · финиш ${phone.deadline} · заданий ${phone.tasks.length} (${points} б, сдать на финише ${atFinish})`,
   );
   if (phone.kps) console.log(`КП: ${phone.kps.length} доступных`);
+  if (phone.sync) console.log(`синхронизация: ${new URL(phone.sync.url).host}`);
   const plan = phone.plan;
   if (plan) {
     const slack = Math.round(plan.slackMin);

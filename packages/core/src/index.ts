@@ -12,6 +12,7 @@ export * from './schema/phone.ts';
 export * from './schema/plan.ts';
 export * from './schema/problem.ts';
 export * from './schema/riddle.ts';
+export * from './schema/sync.ts';
 export * from './schema/table.ts';
 export * from './schemas.ts';
 export * from './state.ts';

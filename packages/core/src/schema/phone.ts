@@ -3,6 +3,7 @@ import { HHMM, IsoDate, IsoDateTime, Loc } from './common.ts';
 import { Kp } from './kp.ts';
 import { Plan } from './plan.ts';
 import { SheetTask } from './riddle.ts';
+import { SyncConfig } from './sync.ts';
 
 /**
  * games/<дата>/phone.json — данные игры для телефона (`./bgq pwa`, на iPhone — по AirDrop).
@@ -27,6 +28,8 @@ export const PhoneGame = Type.Object(
     finish: Type.Optional(Loc),
     /** Свежий plan.json (не старее problem.json и points.json); устаревший не кладётся. */
     plan: Type.Optional(Plan),
+    /** Синхронизация событий между телефонами (`games/sync.json`). Нет — отметки только локально. */
+    sync: Type.Optional(SyncConfig),
   },
   { additionalProperties: false },
 );

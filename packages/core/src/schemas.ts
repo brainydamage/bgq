@@ -9,6 +9,7 @@ import { PhoneGame } from './schema/phone.ts';
 import { Plan } from './schema/plan.ts';
 import { Problem } from './schema/problem.ts';
 import { RiddlesFile } from './schema/riddle.ts';
+import { SyncRequest, SyncResponse } from './schema/sync.ts';
 import { MapFileResults, PointsFile } from './schema/table.ts';
 
 export const SCHEMA_VERSION = 1;
@@ -26,6 +27,8 @@ export const schemas = {
   params: Params,
   riddles: RiddlesFile,
   phone: PhoneGame,
+  'sync-request': SyncRequest,
+  'sync-response': SyncResponse,
 } as const satisfies Record<string, TSchema>;
 
 export type SchemaName = keyof typeof schemas;

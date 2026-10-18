@@ -14,6 +14,7 @@
     "@bgq/geo": "workspace:*",
     "@bgq/ingest": "workspace:*",
     "@bgq/routing": "workspace:*",
+    "@bgq/sync": "workspace:*",
     "@bgq/table": "workspace:*",
     "vite": "8.3.4"
   }

@@ -17,7 +17,7 @@ import {
   taskRows,
   visibleRows,
 } from './checklist.ts';
-import { appendEvent, loadCurrent, saveGame } from './db.ts';
+import { appendEvent, loadCurrent, saveGame, syncStore } from './db.ts';
 import { type Body, makeEvent, toggleBody } from './events.ts';
 import { KpCard } from './KpCard.tsx';
 import { NavView } from './NavView.tsx';
@@ -25,6 +25,14 @@ import { RouteView } from './RouteView.tsx';
 import { forecast, forecastText, routeRows, takenSummary } from './route.ts';
 import { go, type Screen, useScreen } from './router.ts';
 import { offlineReady, onUpdate } from './sw-client.ts';
+import {
+  createSyncer,
+  httpSend,
+  mergeEvents,
+  type Syncer,
+  type SyncStatus,
+  syncText,
+} from './sync.ts';
 import { TasksView } from './TasksView.tsx';
 
 declare const __BGQ_BUILD__: string;
@@ -82,6 +90,8 @@ export function App() {
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [offline, setOffline] = useState(false);
   const [update, setUpdate] = useState<(() => void) | null>(null);
+  const [sync, setSync] = useState<SyncStatus | null>(null);
+  const syncer = useRef<Syncer | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const hashScreen = useScreen();
   // Откуда открыли карточку КП — туда и «назад».
@@ -168,11 +178,43 @@ export function App() {
       setTab(screen.name);
   }, [screen.name]);
 
+  // Синхронизация с другим телефоном — если в phone.json есть адрес; пересоздаётся при смене игры
+  // или адреса/кода. Отметки сети не ждут: запись в IndexedDB, отправка — в фоне.
+  const syncKey = game?.sync ? JSON.stringify([game.gameId, game.sync.url, game.sync.code]) : '';
+  useEffect(() => {
+    if (!syncKey) {
+      setSync(null);
+      return;
+    }
+    const [gameId, url, code] = JSON.parse(syncKey) as [string, string, string];
+    const s = createSyncer({
+      gameId,
+      store: syncStore,
+      send: httpSend({ url, code }),
+      onStatus: setSync,
+      onEvents: (got) => setEvents((prev) => mergeEvents(prev, got)),
+    });
+    syncer.current = s;
+    s.kick();
+    const wake = () => {
+      if (document.visibilityState === 'visible') s.kick();
+    };
+    addEventListener('online', wake);
+    document.addEventListener('visibilitychange', wake);
+    return () => {
+      s.stop();
+      syncer.current = null;
+      removeEventListener('online', wake);
+      document.removeEventListener('visibilitychange', wake);
+    };
+  }, [syncKey]);
+
   async function record(kpId: string, body: Body) {
     if (!game) return;
     try {
       const e = await appendEvent((device) => makeEvent(game.gameId, kpId, body, device));
       setEvents((prev) => [...prev, e]);
+      syncer.current?.kick();
     } catch (e) {
       setError(`Не сохранилось: ${(e as Error).message}`);
     }
@@ -375,6 +417,13 @@ export function App() {
           {game && ` · phone.json от ${new Date(game.exportedAt).toLocaleString('ru')}`}
           {` · версия ${BUILD}`}
         </p>
+        {game && (
+          <p
+            class={`muted small sync${sync && sync.state !== 'offline' && sync.state !== 'denied' ? '' : ' warn'}`}
+          >
+            {syncText(sync, game.tz)}
+          </p>
+        )}
         {!isStandalone() && (
           <p class="muted small">
             На iPhone: «Поделиться» → «На экран „Домой“» и открывать оттуда — у значка своё
