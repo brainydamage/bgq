@@ -32,7 +32,7 @@ const row = (kp: Kp, state: Map<string, KpState>): KpRow => {
 };
 
 /** Порядок «не в плане»: по номеру, затем по id (25 < 25А); без номера — в конце. */
-function byNumber(a: Kp, b: Kp): number {
+export function byNumber(a: Kp, b: Kp): number {
   return (
     (a.number ?? Number.POSITIVE_INFINITY) - (b.number ?? Number.POSITIVE_INFINITY) ||
     a.id.localeCompare(b.id, 'ru')

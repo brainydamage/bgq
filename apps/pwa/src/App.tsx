@@ -1,5 +1,14 @@
 import { clockIn, type Event, PhoneGame, projectState, schemaErrors } from '@bgq/core';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { BookView } from './BookView.tsx';
+import {
+  type BookRow,
+  bookRows,
+  bookSummaryText,
+  copyBody,
+  summarizeBook,
+  visibleBook,
+} from './book.ts';
 import {
   finishReminder,
   summarize,
@@ -27,16 +36,17 @@ const BUILD = new Date(__BGQ_BUILD__).toLocaleString('ru', {
 });
 
 const FILTER_KEY = 'bgq.onlyOpen';
-function readFilter(): boolean {
+const BOOK_FILTER_KEY = 'bgq.book.onlyLeft';
+function readFilter(key: string): boolean {
   try {
-    return localStorage.getItem(FILTER_KEY) === '1';
+    return localStorage.getItem(key) === '1';
   } catch {
     return false;
   }
 }
-function writeFilter(v: boolean) {
+function writeFilter(key: string, v: boolean) {
   try {
-    localStorage.setItem(FILTER_KEY, v ? '1' : '0');
+    localStorage.setItem(key, v ? '1' : '0');
   } catch {
     // приватный режим — фильтр просто не запомнится
   }
@@ -66,7 +76,8 @@ export function App() {
   const [events, setEvents] = useState<Event[]>([]);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const [onlyOpen, setOnlyOpen] = useState(readFilter);
+  const [onlyOpen, setOnlyOpen] = useState(() => readFilter(FILTER_KEY));
+  const [onlyLeft, setOnlyLeft] = useState(() => readFilter(BOOK_FILTER_KEY));
   const [now, setNow] = useState(() => new Date());
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [offline, setOffline] = useState(false);
@@ -74,7 +85,7 @@ export function App() {
   const fileRef = useRef<HTMLInputElement>(null);
   const hashScreen = useScreen();
   // Откуда открыли карточку КП — туда и «назад».
-  const [tab, setTab] = useState<'route' | 'nav'>('route');
+  const [tab, setTab] = useState<KpTab>('route');
 
   async function importText(text: string) {
     const parsed = parsePhone(text);
@@ -134,6 +145,11 @@ export function App() {
     () => (game ? routeRows(game, state) : { plan: [], rest: [] }),
     [game, state],
   );
+  const book = useMemo(
+    () => (game ? bookRows(game, state) : { kps: [], tasks: [] }),
+    [game, state],
+  );
+  const bookSummary = summarizeBook(book);
   const summary = summarize(rows);
   const clock = game ? clockIn(game.tz, now) : null;
   const reminder = game && clock ? finishReminder(rows, game, clock) : null;
@@ -148,7 +164,8 @@ export function App() {
       ? [...route.plan, ...route.rest].find((r) => r.kp.id === screen.id)
       : undefined;
   useEffect(() => {
-    if (screen.name === 'route' || screen.name === 'nav') setTab(screen.name);
+    if (screen.name === 'route' || screen.name === 'nav' || screen.name === 'book')
+      setTab(screen.name);
   }, [screen.name]);
 
   async function record(kpId: string, body: Body) {
@@ -168,7 +185,11 @@ export function App() {
 
   function setFilter(v: boolean) {
     setOnlyOpen(v);
-    writeFilter(v);
+    writeFilter(FILTER_KEY, v);
+  }
+  function setBookFilter(v: boolean) {
+    setOnlyLeft(v);
+    writeFilter(BOOK_FILTER_KEY, v);
   }
 
   async function onFile(e: globalThis.Event) {
@@ -185,7 +206,9 @@ export function App() {
         ? 'Штурман'
         : screen.name === 'route'
           ? 'Маршрут'
-          : 'Задания';
+          : screen.name === 'book'
+            ? 'Книжка ответов'
+            : 'Задания';
 
   return (
     <div class={`app${game ? ' with-tabs' : ''}`}>
@@ -198,7 +221,7 @@ export function App() {
         <div class="title">
           {screen.name === 'kp' && (
             <button type="button" class="back" onClick={() => go({ name: tab })}>
-              ← {tab === 'nav' ? 'Штурман' : 'Маршрут'}
+              ← {TAB_LABEL[tab]}
             </button>
           )}
           <h1>{title}</h1>
@@ -236,6 +259,25 @@ export function App() {
               </button>
               <button type="button" aria-pressed={onlyOpen} onClick={() => setFilter(true)}>
                 Не сделано · {summary.left}
+              </button>
+            </div>
+          </>
+        )}
+        {game && screen.name === 'book' && (
+          <>
+            <div class="summary">
+              {bookSummaryText(bookSummary).map((line, i) => (
+                <p key={line} class={i ? 'warn' : ''}>
+                  {line}
+                </p>
+              ))}
+            </div>
+            <div class="filter">
+              <button type="button" aria-pressed={!onlyLeft} onClick={() => setBookFilter(false)}>
+                Все · {bookSummary.total}
+              </button>
+              <button type="button" aria-pressed={onlyLeft} onClick={() => setBookFilter(true)}>
+                Не переписано · {bookSummary.left}
               </button>
             </div>
           </>
@@ -287,6 +329,13 @@ export function App() {
           onToggle={toggle}
           onNote={(kpId, answer) => record(kpId, { type: 'answer_changed', answer })}
           onTime={(kpId, answerTime) => record(kpId, { type: 'answer_changed', answerTime })}
+        />
+      )}
+      {game && screen.name === 'book' && (
+        <BookView
+          book={visibleBook(book, onlyLeft)}
+          all={bookSummary.total}
+          onToggle={(r: BookRow) => record(r.id, copyBody(r))}
         />
       )}
       {game && screen.name === 'route' && <RouteView rows={route} hasPlan={Boolean(game.plan)} />}
@@ -343,18 +392,23 @@ export function App() {
             </>
           )}
           <TabButton screen={screen} name="tasks" label="Задания" icon="☑︎" tab={tab} />
+          <TabButton screen={screen} name="book" label="Книжка" icon="✍︎" tab={tab} />
         </nav>
       )}
     </div>
   );
 }
 
+/** Вкладки, с которых открывается карточка КП (туда — «назад»). */
+type KpTab = 'route' | 'nav' | 'book';
+const TAB_LABEL: Record<KpTab, string> = { route: 'Маршрут', nav: 'Штурман', book: 'Книжка' };
+
 function TabButton(props: {
   screen: Screen;
-  name: 'route' | 'nav' | 'tasks';
+  name: 'route' | 'nav' | 'tasks' | 'book';
   label: string;
   icon: string;
-  tab: 'route' | 'nav';
+  tab: KpTab;
 }) {
   // Карточка КП — часть вкладки, с которой её открыли.
   const active =

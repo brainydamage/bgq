@@ -51,11 +51,30 @@ export const AnswerChangedEvent = Type.Object(
 /** Отмена «взято»/«пропустить» (ошибочный тап). */
 export const ReopenedEvent = Type.Object({ ...base, type: Type.Literal('reopened') }, opts);
 
+/**
+ * Переписано в бумажную книжку ответов: снимок того, что переписали. Ответ или время потом
+ * поменялись — переписать заново (сравнение со снимком). Пустое поле — не указывается.
+ */
+export const CopiedEvent = Type.Object(
+  {
+    ...base,
+    type: Type.Literal('copied'),
+    answer: Type.Optional(Type.String()),
+    answerTime: Type.Optional(HHMM),
+  },
+  opts,
+);
+
+/** Снята галочка «переписано». */
+export const UncopiedEvent = Type.Object({ ...base, type: Type.Literal('uncopied') }, opts);
+
 export const Event = Type.Union([
   TakenEvent,
   SkippedEvent,
   SolvedEvent,
   AnswerChangedEvent,
   ReopenedEvent,
+  CopiedEvent,
+  UncopiedEvent,
 ]);
 export type Event = Static<typeof Event>;

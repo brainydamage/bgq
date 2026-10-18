@@ -1,13 +1,4 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import {
-  Event,
-  parseRiddleSheets,
-  projectState,
-  type SheetTask,
-  schemaErrors,
-  taskId,
-} from '@bgq/core';
+import { Event, projectState, schemaErrors } from '@bgq/core';
 import { describe, expect, it } from 'vitest';
 import {
   finishReminder,
@@ -18,24 +9,11 @@ import {
   visibleRows,
 } from '../src/checklist.ts';
 import { makeEvent, toggleBody, uuid } from '../src/events.ts';
+import { sheetTasks } from './fixture.ts';
 
 const GAME = '2026-10-10';
-// Задания 10.10 из расшифровки листков (как их сохраняет страница «Загадки»): 10 штук, 56 б.
-const tasks: SheetTask[] = [];
-for (const t of parseRiddleSheets(
-  readFileSync(join(import.meta.dirname, '../../../fixtures/2026-10-10/sheets.md'), 'utf8'),
-).tasks) {
-  tasks.push({
-    id: taskId(t.title, new Set(tasks.map((x) => x.id))),
-    title: t.title,
-    text: t.text,
-    points: t.points ?? 0,
-    ...(t.pointsMax && { pointsMax: t.pointsMax }),
-    atFinish: t.atFinish,
-    notes: '',
-    updatedAt: '2026-10-10T12:30:00+02:00',
-  });
-}
+// Задания 10.10 из расшифровки листков: 10 штук, 56 б.
+const tasks = sheetTasks();
 const id = (title: string) => {
   const t = tasks.find((x) => x.title.startsWith(title));
   if (!t) throw new Error(title);

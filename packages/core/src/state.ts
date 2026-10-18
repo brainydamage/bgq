@@ -13,6 +13,8 @@ export interface KpState {
   /** Загадка разгадана (≠ взята). */
   solved: boolean;
   loc?: Loc;
+  /** Переписано в книжку: что переписали (сравнить с текущим — не переписать ли заново). */
+  copied?: { answer?: string; answerTime?: string };
   /** clientTs последнего события. */
   updatedAt: string;
 }
@@ -55,6 +57,15 @@ export function projectState(events: readonly Event[], gameId: string): Map<stri
       case 'answer_changed':
         if (e.answer !== undefined) s.answer = e.answer;
         if (e.answerTime !== undefined) s.answerTime = e.answerTime;
+        break;
+      case 'copied':
+        s.copied = {
+          ...(e.answer !== undefined ? { answer: e.answer } : {}),
+          ...(e.answerTime !== undefined ? { answerTime: e.answerTime } : {}),
+        };
+        break;
+      case 'uncopied':
+        delete s.copied;
         break;
       case 'solved':
         s.solved = true;

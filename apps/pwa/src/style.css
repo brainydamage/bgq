@@ -334,7 +334,7 @@ h1 {
   font-weight: 600;
 }
 
-/* Вкладки внизу: Маршрут · Штурман · Задания. */
+/* Вкладки внизу: Маршрут · Штурман · Задания · Книжка. */
 .app.with-tabs {
   padding-bottom: calc(72px + env(safe-area-inset-bottom));
 }
@@ -599,4 +599,79 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--card);
+}
+
+/* Книжка ответов: строка — галочка «переписано», номер, время, ответ. */
+.book {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+
+.bookrow {
+  display: flex;
+  align-items: flex-start;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.bookrow.done {
+  border-color: var(--accent);
+}
+
+.bookrow.done .check {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.bookrow.attn {
+  border-left: 4px solid var(--warn);
+}
+
+.bookrow.zero {
+  border-left: 4px solid var(--error);
+  background: var(--error-soft);
+}
+
+.bookrow .head:disabled {
+  opacity: 1;
+}
+
+.book-time {
+  font-weight: 700;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.book-answer {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.book-time.missing,
+.book-answer.missing {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.bookrow.done .book-answer,
+.bookrow.done .book-time {
+  color: var(--muted);
+}
+
+.book-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 14px;
+}
+
+.bad {
+  color: var(--error);
+  font-weight: 700;
 }

@@ -86,6 +86,24 @@ describe('projectState: события → состояние', () => {
     expect(projectState([taken, reopened, { ...taken }], GAME).get('t-x')?.status).toBe('open');
   });
 
+  it('copied — снимок переписанного; uncopied снимает; reopened его не трогает', () => {
+    const events = [
+      ev('taken', '64', '14:05:00', { answerTime: '14:05' }),
+      ev('answer_changed', '64', '14:06:00', { answer: 'Тесла' }),
+      ev('copied', '64', '14:30:00', { answer: 'Тесла', answerTime: '14:05' }),
+      ev('reopened', '64', '14:31:00'),
+    ];
+    expect(projectState(events, GAME).get('64')).toMatchObject({
+      status: 'open',
+      copied: { answer: 'Тесла', answerTime: '14:05' },
+    });
+    events.push(ev('uncopied', '64', '14:32:00'));
+    expect(projectState(events, GAME).get('64')?.copied).toBeUndefined();
+    // Пустой снимок (переписали только номер) — тоже «переписано».
+    const empty = projectState([ev('copied', '65', '14:33:00')], GAME).get('65');
+    expect(empty?.copied).toEqual({});
+  });
+
   it('события другой игры не учитываются; skipped и solved', () => {
     const events = [
       { ...ev('taken', 't-x', '14:05:00', { answerTime: '14:05' }), gameId: '2026-01-01' },
