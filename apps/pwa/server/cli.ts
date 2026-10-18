@@ -4,8 +4,17 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import type { ServerResponse } from 'node:http';
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { type PhoneGame, phoneGame, RiddlesFile, schemaErrors } from '@bgq/core';
+import {
+  clock,
+  type PhoneGame,
+  PointsFile,
+  phoneGame,
+  planMissing,
+  RiddlesFile,
+  schemaErrors,
+} from '@bgq/core';
 import { currentGameDir, InitError, loadGame } from '@bgq/ingest';
+import { freshPlan } from '@bgq/routing';
 import { build, createServer, type Plugin, preview } from 'vite';
 
 const APP_DIR = resolve(import.meta.dirname, '..');
@@ -14,7 +23,8 @@ const CONFIG = join(APP_DIR, 'vite.config.ts');
 
 const USAGE = [
   'usage: ./bgq pwa [dev|build|preview] [--date ГГГГ-ММ-ДД] [--port N] [--lan] [--no-open]',
-  '  (без команды) game.json + riddles.json → games/<дата>/phone.json — на iPhone по AirDrop',
+  '  (без команды) game.json + riddles.json + points.json + plan.json → games/<дата>/phone.json',
+  '           — на iPhone по AirDrop; устаревший план (как у ./bgq kml) не кладётся',
   '  dev      — приложение на ноутбуке с пересборкой (без офлайна); phone.json подгружается сам',
   '  build    — сборка в apps/pwa/dist (то же, что выкладывает GitHub Actions на Pages)',
   '  preview  — сборка + раздача на localhost: проверка офлайна (service worker)',
@@ -57,8 +67,24 @@ const rel = (p: string) => {
   return r.startsWith('..') ? resolve(p) : r || '.';
 };
 
+interface Exported {
+  path: string;
+  phone: PhoneGame;
+  /** Почему в phone.json нет КП или плана. */
+  warnings: string[];
+}
+
+/** JSON-файл игры по схеме; нет файла — null, битый — выход с ошибкой. */
+function readJson<T>(path: string, schema: Parameters<typeof schemaErrors>[0]): T | null {
+  if (!existsSync(path)) return null;
+  const data: unknown = JSON.parse(readFileSync(path, 'utf8'));
+  const errors = schemaErrors(schema, data);
+  if (errors.length) fail(`✗ ${rel(path)}: ${errors.slice(0, 5).join('; ')}`);
+  return data as T;
+}
+
 /** phone.json текущей игры (пишется заново при каждом запуске). */
-function exportPhone(): { path: string; phone: PhoneGame } {
+function exportPhone(): Exported {
   let gameDir: string;
   try {
     gameDir = currentGameDir(resolve(values.games ?? GAMES_DIR), values.date);
@@ -67,26 +93,42 @@ function exportPhone(): { path: string; phone: PhoneGame } {
     fail(`✗ ${e.message}`);
   }
   const game = loadGame(join(gameDir, 'game.json'));
-  const riddlesPath = join(gameDir, 'riddles.json');
-  let riddles: RiddlesFile | null = null;
-  if (existsSync(riddlesPath)) {
-    const data: unknown = JSON.parse(readFileSync(riddlesPath, 'utf8'));
-    const errors = schemaErrors(RiddlesFile, data);
-    if (errors.length) fail(`✗ ${rel(riddlesPath)}: ${errors.slice(0, 5).join('; ')}`);
-    riddles = data as RiddlesFile;
+  const riddles = readJson<RiddlesFile>(join(gameDir, 'riddles.json'), RiddlesFile);
+  const points = readJson<PointsFile>(join(gameDir, 'points.json'), PointsFile);
+  const warnings: string[] = [];
+  let route: Parameters<typeof phoneGame>[3] = null;
+  if (!points) {
+    warnings.push('нет points.json — на телефоне только задания; ./bgq route');
+  } else {
+    const { plan, why } = freshPlan(gameDir);
+    const missing = plan ? planMissing(plan, points) : [];
+    if (why) warnings.push(`план устарел (${why}) — не добавлен; ./bgq route`);
+    else if (!plan) warnings.push('плана нет (./bgq route) — КП без порядка');
+    else if (missing.length)
+      warnings.push(`в плане КП не с этой карты: ${missing.join(', ')} — план не добавлен`);
+    route = { points, ...(plan && !missing.length && { plan }) };
   }
-  const phone = phoneGame(game, riddles, new Date().toISOString());
+  const phone = phoneGame(game, riddles, new Date().toISOString(), route);
   const path = join(gameDir, 'phone.json');
   writeFileSync(path, `${JSON.stringify(phone, null, 2)}\n`);
-  return { path, phone };
+  return { path, phone, warnings };
 }
 
-function printExport({ path, phone }: { path: string; phone: PhoneGame }) {
+function printExport({ path, phone, warnings }: Exported) {
   const points = phone.tasks.reduce((s, t) => s + t.points, 0);
   const atFinish = phone.tasks.filter((t) => t.atFinish).length;
   console.log(
     `${rel(path)}: ${phone.city}, ${phone.date} · финиш ${phone.deadline} · заданий ${phone.tasks.length} (${points} б, сдать на финише ${atFinish})`,
   );
+  if (phone.kps) console.log(`КП: ${phone.kps.length} доступных`);
+  const plan = phone.plan;
+  if (plan) {
+    const slack = Math.round(plan.slackMin);
+    console.log(
+      `план: ${plan.stops.length} КП · ${plan.totalPoints} б · финиш ${clock(plan.t0, plan.finishS)}, ${slack >= 0 ? `запас ${slack} мин` : `опоздание ${-slack} мин`}`,
+    );
+  }
+  for (const w of warnings) console.log(`△ ${w}`);
   if (!phone.tasks.length)
     console.log('△ Заданий без места нет — заведите их на странице «Загадки» (./bgq map)');
 }

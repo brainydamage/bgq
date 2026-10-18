@@ -11,7 +11,10 @@
     "preact": "10.29.8"
   },
   "devDependencies": {
+    "@bgq/geo": "workspace:*",
     "@bgq/ingest": "workspace:*",
+    "@bgq/routing": "workspace:*",
+    "@bgq/table": "workspace:*",
     "vite": "8.3.4"
   }
 }

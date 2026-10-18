@@ -1,9 +1,11 @@
-// События телефона: «сделано» = taken, отмена = reopened, заметка и правка времени = answer_changed.
+// События телефона: «сделано»/«взято» = taken, отмена = reopened, заметка/ответ и правка времени =
+// answer_changed, «пропустить» (штурман) = skipped.
 import type { Event } from '@bgq/core';
 
 export type Body =
   | { type: 'taken'; answerTime: string }
   | { type: 'reopened' }
+  | { type: 'skipped' }
   | { type: 'answer_changed'; answer?: string; answerTime?: string };
 
 /** UUID v4; crypto.randomUUID нет вне защищённого контекста (http по LAN). */

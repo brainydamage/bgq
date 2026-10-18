@@ -305,6 +305,7 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--bg);
+  color: var(--text);
   /* 16px+ — иначе iOS увеличивает страницу при фокусе. */
   font-size: 17px;
 }
@@ -331,4 +332,271 @@ h1 {
   background: var(--card);
   color: var(--accent);
   font-weight: 600;
+}
+
+/* Вкладки внизу: Маршрут · Штурман · Задания. */
+.app.with-tabs {
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+}
+
+.tabs {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  background: var(--card);
+  border-top: 1px solid var(--line);
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.tabs button {
+  flex: 1;
+  max-width: 214px;
+  min-height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.tabs button span {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.tabs button[aria-current="page"] {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.back {
+  min-height: 36px;
+  padding: 0 10px 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.summary p {
+  margin: 0;
+}
+
+.section {
+  margin: 18px 0 0;
+  font-size: 15px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* Список КП (Маршрут). */
+.kps,
+.next,
+.skipped {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  /* minmax(0, …) — иначе длинное название (nowrap) раздвигает страницу шире экрана. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+
+.kp {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.kp.taken {
+  border-color: var(--accent);
+}
+
+.kp.skipped {
+  opacity: 0.6;
+}
+
+.kp > button {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 12px 8px 8px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.kp .n {
+  flex: none;
+  width: 28px;
+  padding-top: 1px;
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.kp .body,
+.stop-head {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.id {
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.title-line {
+  font-size: 14px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kp.taken .id {
+  color: var(--accent);
+}
+
+/* Штурман: следующие точки. */
+.stop {
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.stop.first {
+  border: 2px solid var(--accent);
+}
+
+.stop-head {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.stop-head .title-line {
+  white-space: normal;
+}
+
+.skipped li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--card);
+  border-radius: 10px;
+}
+
+/* Карточка КП. */
+.card {
+  margin-top: 10px;
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.card.taken {
+  border-color: var(--accent);
+}
+
+.card p {
+  margin: 0;
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.big {
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.plan-line {
+  font-size: 14px;
+}
+
+.kp-title {
+  margin: 4px 0 0;
+  font-size: 19px;
+}
+
+.struck del {
+  color: var(--muted);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.actions button,
+.lead {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.actions .primary,
+.lead.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.card > .lead {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.skipped button {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
 }

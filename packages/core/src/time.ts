@@ -38,3 +38,10 @@ export function clockIn(tz: string, now: Date = new Date()): { date: string; hhm
     hhmm: `${parts.hour}:${parts.minute}`,
   };
 }
+
+/** «ЧЧ:ММ» местного времени: t0 (с часовым поясом игры) + s секунд. */
+export function clock(t0: string, s: number): string {
+  const total = Number(t0.slice(11, 13)) * 60 + Number(t0.slice(14, 16)) + Math.round(s / 60);
+  const h = Math.floor(total / 60) % 24;
+  return `${String(h).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}

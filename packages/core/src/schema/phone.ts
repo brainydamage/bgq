@@ -1,5 +1,7 @@
 import Type, { type Static } from 'typebox';
-import { HHMM, IsoDate, IsoDateTime } from './common.ts';
+import { HHMM, IsoDate, IsoDateTime, Loc } from './common.ts';
+import { Kp } from './kp.ts';
+import { Plan } from './plan.ts';
 import { SheetTask } from './riddle.ts';
 
 /**
@@ -19,6 +21,12 @@ export const PhoneGame = Type.Object(
     exportedAt: IsoDateTime,
     /** Задания без места — чек-лист секретаря. */
     tasks: Type.Array(SheetTask),
+    /** Доступные КП из points.json (с загадками) — карточки секретаря. Нет — только чек-лист. */
+    kps: Type.Optional(Type.Array(Kp)),
+    start: Type.Optional(Loc),
+    finish: Type.Optional(Loc),
+    /** Свежий plan.json (не старее problem.json и points.json); устаревший не кладётся. */
+    plan: Type.Optional(Plan),
   },
   { additionalProperties: false },
 );

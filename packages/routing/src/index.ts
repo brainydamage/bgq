@@ -23,6 +23,7 @@ export {
   type TableResult,
   withOsrm,
 } from './osrm.ts';
+export { freshPlan } from './plan-file.ts';
 export {
   buildProblem,
   departTime,

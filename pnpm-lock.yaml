@@ -210,9 +210,18 @@ importers:
         specifier: 10.29.8
         version: 10.29.8
     devDependencies:
+      '@bgq/geo':
+        specifier: workspace:*
+        version: link:../../packages/geo
       '@bgq/ingest':
         specifier: workspace:*
         version: link:../../packages/ingest
+      '@bgq/routing':
+        specifier: workspace:*
+        version: link:../../packages/routing
+      '@bgq/table':
+        specifier: workspace:*
+        version: link:../../packages/table
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@24.19.2)(yaml@2.9.1)

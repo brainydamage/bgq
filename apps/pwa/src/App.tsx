@@ -2,7 +2,6 @@ import { clockIn, type Event, PhoneGame, projectState, schemaErrors } from '@bgq
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import {
   finishReminder,
-  pointsLabel,
   summarize,
   summaryText,
   type TaskRow,
@@ -11,7 +10,13 @@ import {
 } from './checklist.ts';
 import { appendEvent, loadCurrent, saveGame } from './db.ts';
 import { type Body, makeEvent, toggleBody } from './events.ts';
+import { KpCard } from './KpCard.tsx';
+import { NavView } from './NavView.tsx';
+import { RouteView } from './RouteView.tsx';
+import { forecast, forecastText, routeRows, takenSummary } from './route.ts';
+import { go, type Screen, useScreen } from './router.ts';
 import { offlineReady, onUpdate } from './sw-client.ts';
+import { TasksView } from './TasksView.tsx';
 
 declare const __BGQ_BUILD__: string;
 const BUILD = new Date(__BGQ_BUILD__).toLocaleString('ru', {
@@ -62,12 +67,14 @@ export function App() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [onlyOpen, setOnlyOpen] = useState(readFilter);
-  const [expanded, setExpanded] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [offline, setOffline] = useState(false);
   const [update, setUpdate] = useState<(() => void) | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const hashScreen = useScreen();
+  // Откуда открыли карточку КП — туда и «назад».
+  const [tab, setTab] = useState<'route' | 'nav'>('route');
 
   async function importText(text: string) {
     const parsed = parsePhone(text);
@@ -78,8 +85,14 @@ export function App() {
     setGame(cur.game);
     setEvents(cur.events);
     setError('');
+    const plan = parsed.plan
+      ? `, план ${parsed.plan.stops.length} КП`
+      : parsed.kps
+        ? ', без плана'
+        : '';
     setMessage(
       `${same ? 'Обновлено' : 'Загружено'}: ${parsed.city}, ${parsed.date} — заданий ${parsed.tasks.length}` +
+        (parsed.kps ? `, КП ${parsed.kps.length}${plan}` : '') +
         (same ? ', отметки сохранены' : ''),
     );
   }
@@ -94,7 +107,7 @@ export function App() {
         // ?load=phone.json — загрузка с того же сервера (./bgq pwa dev); только относительный путь.
         const load = new URLSearchParams(location.search).get('load');
         if (load && !/^[a-z]+:|^\/\//i.test(load)) {
-          history.replaceState(null, '', location.pathname);
+          history.replaceState(null, '', location.pathname + location.hash);
           const res = await fetch(load, { cache: 'no-store' });
           if (res.ok) await importText(await res.text());
           else setError(`Не загрузилось ${load}: ${res.status}`);
@@ -112,13 +125,31 @@ export function App() {
     return () => clearInterval(tick);
   }, []);
 
-  const rows = useMemo(
-    () => (game ? taskRows(game.tasks, projectState(events, game.gameId)) : []),
+  const state = useMemo(
+    () => (game ? projectState(events, game.gameId) : new Map()),
     [game, events],
+  );
+  const rows = useMemo(() => (game ? taskRows(game.tasks, state) : []), [game, state]);
+  const route = useMemo(
+    () => (game ? routeRows(game, state) : { plan: [], rest: [] }),
+    [game, state],
   );
   const summary = summarize(rows);
   const clock = game ? clockIn(game.tz, now) : null;
   const reminder = game && clock ? finishReminder(rows, game, clock) : null;
+  const fc = game ? forecast(game, route.plan, now) : null;
+  const taken = takenSummary(route);
+
+  // Экран: из хэша; по умолчанию — маршрут, если в игре есть КП, иначе задания.
+  const hasKps = Boolean(game?.kps);
+  const screen: Screen = hashScreen ?? { name: hasKps ? 'route' : 'tasks' };
+  const kpRow =
+    screen.name === 'kp'
+      ? [...route.plan, ...route.rest].find((r) => r.kp.id === screen.id)
+      : undefined;
+  useEffect(() => {
+    if (screen.name === 'route' || screen.name === 'nav') setTab(screen.name);
+  }, [screen.name]);
 
   async function record(kpId: string, body: Body) {
     if (!game) return;
@@ -129,10 +160,10 @@ export function App() {
       setError(`Не сохранилось: ${(e as Error).message}`);
     }
   }
+  const nowHhmm = () => (game ? clockIn(game.tz).hhmm : '');
 
   function toggle(row: TaskRow) {
-    if (!game) return;
-    void record(row.task.id, toggleBody(row.done, clockIn(game.tz).hhmm));
+    void record(row.task.id, toggleBody(row.done, nowHhmm()));
   }
 
   function setFilter(v: boolean) {
@@ -147,10 +178,17 @@ export function App() {
     if (file) await importText(await file.text());
   }
 
-  const shown = visibleRows(rows, onlyOpen);
+  const title =
+    screen.name === 'kp'
+      ? `КП ${screen.id}`
+      : screen.name === 'nav'
+        ? 'Штурман'
+        : screen.name === 'route'
+          ? 'Маршрут'
+          : 'Задания';
 
   return (
-    <div class="app">
+    <div class={`app${game ? ' with-tabs' : ''}`}>
       {update && (
         <button type="button" class="update" onClick={update}>
           Есть новая версия — обновить
@@ -158,14 +196,38 @@ export function App() {
       )}
       <header class="top">
         <div class="title">
-          <h1>Задания</h1>
-          {game && (
+          {screen.name === 'kp' && (
+            <button type="button" class="back" onClick={() => go({ name: tab })}>
+              ← {tab === 'nav' ? 'Штурман' : 'Маршрут'}
+            </button>
+          )}
+          <h1>{title}</h1>
+          {game && screen.name !== 'kp' && (
             <span class="muted">
               {game.city} · {game.date} · финиш {game.deadline}
             </span>
           )}
         </div>
-        {game && (
+        {game && (screen.name === 'route' || screen.name === 'nav') && (
+          <div class="summary">
+            {fc ? (
+              forecastText(fc).map((line, i) => (
+                <p key={line} class={i ? 'warn' : ''}>
+                  {line}
+                </p>
+              ))
+            ) : (
+              <p>финиш до {game.deadline}</p>
+            )}
+            {screen.name === 'route' && (
+              <p class="muted small">
+                взято {taken.taken} · {taken.points} б
+                {taken.skipped ? ` · пропущено ${taken.skipped}` : ''}
+              </p>
+            )}
+          </div>
+        )}
+        {game && screen.name === 'tasks' && (
           <>
             <p class="summary">{summaryText(summary)}</p>
             <div class="filter">
@@ -219,21 +281,37 @@ export function App() {
         </section>
       )}
 
-      {game && (
-        <ul class="tasks">
-          {shown.map((row) => (
-            <TaskItem
-              key={row.task.id}
-              row={row}
-              open={expanded === row.task.id}
-              onToggle={() => toggle(row)}
-              onOpen={() => setExpanded(expanded === row.task.id ? null : row.task.id)}
-              onNote={(answer) => record(row.task.id, { type: 'answer_changed', answer })}
-              onTime={(answerTime) => record(row.task.id, { type: 'answer_changed', answerTime })}
-            />
-          ))}
-          {!shown.length && <li class="muted all-done">Всё сделано 🎉</li>}
-        </ul>
+      {game && screen.name === 'tasks' && (
+        <TasksView
+          rows={visibleRows(rows, onlyOpen)}
+          onToggle={toggle}
+          onNote={(kpId, answer) => record(kpId, { type: 'answer_changed', answer })}
+          onTime={(kpId, answerTime) => record(kpId, { type: 'answer_changed', answerTime })}
+        />
+      )}
+      {game && screen.name === 'route' && <RouteView rows={route} hasPlan={Boolean(game.plan)} />}
+      {game && screen.name === 'nav' && (
+        <NavView
+          plan={route.plan}
+          hasPlan={Boolean(game.plan)}
+          finish={game.finish}
+          onSkip={(kpId) => record(kpId, { type: 'skipped' })}
+          onReopen={(kpId) => record(kpId, { type: 'reopened' })}
+        />
+      )}
+      {game && screen.name === 'kp' && !kpRow && (
+        <p class="note-msg">КП {screen.id} нет в этой игре.</p>
+      )}
+      {game && kpRow && (
+        <KpCard
+          key={kpRow.kp.id}
+          row={kpRow}
+          onTaken={() => record(kpRow.kp.id, { type: 'taken', answerTime: nowHhmm() })}
+          onReopen={() => record(kpRow.kp.id, { type: 'reopened' })}
+          onSkip={() => record(kpRow.kp.id, { type: 'skipped' })}
+          onAnswer={(answer) => record(kpRow.kp.id, { type: 'answer_changed', answer })}
+          onTime={(answerTime) => record(kpRow.kp.id, { type: 'answer_changed', answerTime })}
+        />
       )}
 
       <footer class="bottom">
@@ -255,109 +333,40 @@ export function App() {
           </p>
         )}
       </footer>
+
+      {game && (
+        <nav class="tabs">
+          {hasKps && (
+            <>
+              <TabButton screen={screen} name="route" label="Маршрут" icon="🗺" tab={tab} />
+              <TabButton screen={screen} name="nav" label="Штурман" icon="🧭" tab={tab} />
+            </>
+          )}
+          <TabButton screen={screen} name="tasks" label="Задания" icon="☑︎" tab={tab} />
+        </nav>
+      )}
     </div>
   );
 }
 
-function TaskItem(props: {
-  row: TaskRow;
-  open: boolean;
-  onToggle: () => void;
-  onOpen: () => void;
-  onNote: (note: string) => void;
-  onTime: (hhmm: string) => void;
+function TabButton(props: {
+  screen: Screen;
+  name: 'route' | 'nav' | 'tasks';
+  label: string;
+  icon: string;
+  tab: 'route' | 'nav';
 }) {
-  const { row, open } = props;
-  const { task } = row;
-  const [draft, setDraft] = useState(row.note);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const saved = useRef(row.note);
-  const latest = useRef({ draft, onNote: props.onNote });
-  latest.current = { draft, onNote: props.onNote };
-
-  // Заметку обновили извне (повторный импорт, позже — штурман) и мы её не правим — показать.
-  useEffect(() => {
-    if (!timer.current) setDraft(row.note);
-    saved.current = row.note;
-  }, [row.note]);
-
-  function flush() {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = null;
-    const text = latest.current.draft;
-    if (text !== saved.current) {
-      saved.current = text;
-      latest.current.onNote(text);
-    }
-  }
-
-  // Сохранение при вводе — через 0,7 с тишины; сразу — при уходе в фон и когда строка исчезает
-  // (фильтр «не сделано» после галочки).
-  function onInput(text: string) {
-    setDraft(text);
-    latest.current.draft = text;
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(flush, 700);
-  }
-  useEffect(() => {
-    const onHide = () => document.visibilityState === 'hidden' && flush();
-    document.addEventListener('visibilitychange', onHide);
-    return () => {
-      document.removeEventListener('visibilitychange', onHide);
-      flush();
-    };
-  }, []);
-
+  // Карточка КП — часть вкладки, с которой её открыли.
+  const active =
+    props.screen.name === props.name || (props.screen.name === 'kp' && props.tab === props.name);
   return (
-    <li class={`task${row.done ? ' done' : ''}`}>
-      <div class="row">
-        <label class="check">
-          <input
-            type="checkbox"
-            checked={row.done}
-            aria-label={`${task.title}: сделано`}
-            onChange={props.onToggle}
-          />
-          <span aria-hidden="true">{row.done ? '✓' : ''}</span>
-        </label>
-        <button type="button" class="head" aria-expanded={open} onClick={props.onOpen}>
-          <span class="name">{task.title}</span>
-          <span class="meta">
-            <span class="pts">{pointsLabel(task)}</span>
-            {task.atFinish && <span class="flag">🏁 сдать на финише</span>}
-            {row.done && row.doneAt && <span class="time">✓ {row.doneAt}</span>}
-          </span>
-          {!open && row.note && <span class="note-preview">✎ {row.note}</span>}
-        </button>
-      </div>
-      {open && (
-        <div class="details">
-          {task.text && <p class="text">{task.text}</p>}
-          {row.done && (
-            <label class="field">
-              Время «сделано»
-              <input
-                type="time"
-                value={row.doneAt ?? ''}
-                onChange={(e) => {
-                  const v = e.currentTarget.value;
-                  if (/^\d\d:\d\d$/.test(v) && v !== row.doneAt) props.onTime(v);
-                }}
-              />
-            </label>
-          )}
-          <label class="field">
-            Заметка
-            <textarea
-              rows={2}
-              value={draft}
-              placeholder="фото у Иры, письмо в рюкзаке…"
-              onInput={(e) => onInput(e.currentTarget.value)}
-              onBlur={flush}
-            />
-          </label>
-        </div>
-      )}
-    </li>
+    <button
+      type="button"
+      aria-current={active ? 'page' : undefined}
+      onClick={() => go({ name: props.name })}
+    >
+      <span aria-hidden="true">{props.icon}</span>
+      {props.label}
+    </button>
   );
 }

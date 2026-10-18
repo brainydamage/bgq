@@ -1,0 +1,243 @@
+{
+  "v": 1,
+  "planId": "a8a3735d-3d16-448b-9e2f-72e6f8776a44",
+  "gameId": "2026-10-10",
+  "problemHash": "sha256:c3e5dec1ba95a5ebd395a1ce5f0912b6b83359adeb2d9f2ac4f73867d289357c",
+  "createdAt": "2026-10-18T12:24:22.240Z",
+  "solver": "ortools",
+  "solverMs": 13494,
+  "t0": "2026-10-10T12:30:00+02:00",
+  "stops": [
+    {
+      "kpId": "38",
+      "arriveS": 861,
+      "departS": 1161
+    },
+    {
+      "kpId": "43",
+      "arriveS": 1284,
+      "departS": 1584
+    },
+    {
+      "kpId": "44",
+      "arriveS": 1690,
+      "departS": 1990
+    },
+    {
+      "kpId": "56",
+      "arriveS": 2412,
+      "departS": 2712
+    },
+    {
+      "kpId": "70",
+      "arriveS": 3228,
+      "departS": 3528
+    },
+    {
+      "kpId": "82",
+      "arriveS": 4010,
+      "departS": 4370
+    },
+    {
+      "kpId": "81",
+      "arriveS": 5226,
+      "departS": 5526
+    },
+    {
+      "kpId": "79",
+      "arriveS": 5709,
+      "departS": 6009
+    },
+    {
+      "kpId": "72",
+      "arriveS": 6572,
+      "departS": 6872
+    },
+    {
+      "kpId": "69",
+      "arriveS": 7194,
+      "departS": 7494
+    },
+    {
+      "kpId": "61",
+      "arriveS": 8160,
+      "departS": 8460
+    },
+    {
+      "kpId": "52",
+      "arriveS": 8605,
+      "departS": 8905
+    },
+    {
+      "kpId": "79А",
+      "arriveS": 9144,
+      "departS": 9444
+    },
+    {
+      "kpId": "54",
+      "arriveS": 9627,
+      "departS": 9927
+    },
+    {
+      "kpId": "46",
+      "arriveS": 10305,
+      "departS": 10605
+    },
+    {
+      "kpId": "49",
+      "arriveS": 10711,
+      "departS": 11011
+    },
+    {
+      "kpId": "47",
+      "arriveS": 11425,
+      "departS": 11725
+    },
+    {
+      "kpId": "48",
+      "arriveS": 11960,
+      "departS": 12260
+    },
+    {
+      "kpId": "45",
+      "arriveS": 12430,
+      "departS": 12730
+    },
+    {
+      "kpId": "51",
+      "arriveS": 12902,
+      "departS": 13202
+    },
+    {
+      "kpId": "33",
+      "arriveS": 13439,
+      "departS": 13739
+    },
+    {
+      "kpId": "29",
+      "arriveS": 13853,
+      "departS": 14153
+    },
+    {
+      "kpId": "120",
+      "arriveS": 14647,
+      "departS": 15547
+    },
+    {
+      "kpId": "21",
+      "arriveS": 15611,
+      "departS": 15911
+    },
+    {
+      "kpId": "34",
+      "arriveS": 16081,
+      "departS": 16381
+    },
+    {
+      "kpId": "42",
+      "arriveS": 16538,
+      "departS": 16838
+    },
+    {
+      "kpId": "55",
+      "arriveS": 16970,
+      "departS": 17270
+    },
+    {
+      "kpId": "86",
+      "arriveS": 17736,
+      "departS": 18036
+    },
+    {
+      "kpId": "88",
+      "arriveS": 18225,
+      "departS": 18525
+    },
+    {
+      "kpId": "75А",
+      "arriveS": 18753,
+      "departS": 19053
+    },
+    {
+      "kpId": "59",
+      "arriveS": 19624,
+      "departS": 19924
+    },
+    {
+      "kpId": "71Б",
+      "arriveS": 20544,
+      "departS": 20844
+    },
+    {
+      "kpId": "85",
+      "arriveS": 21154,
+      "departS": 21454
+    },
+    {
+      "kpId": "66",
+      "arriveS": 21991,
+      "departS": 22291
+    },
+    {
+      "kpId": "57",
+      "arriveS": 23086,
+      "departS": 23386
+    },
+    {
+      "kpId": "65А",
+      "arriveS": 23710,
+      "departS": 24070
+    },
+    {
+      "kpId": "97",
+      "arriveS": 24304,
+      "departS": 24904
+    }
+  ],
+  "finishS": 25187,
+  "slackMin": 0.2,
+  "totalPoints": 207,
+  "expectedPrize": 207,
+  "distanceM": 15608,
+  "dropped": [
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "19",
+    "20",
+    "22",
+    "23",
+    "24",
+    "25",
+    "25А",
+    "26",
+    "27",
+    "28",
+    "30",
+    "31",
+    "32",
+    "35",
+    "36",
+    "37",
+    "39",
+    "40",
+    "41",
+    "47А",
+    "50",
+    "53",
+    "58",
+    "63",
+    "64",
+    "65",
+    "68",
+    "71",
+    "76",
+    "99"
+  ]
+}

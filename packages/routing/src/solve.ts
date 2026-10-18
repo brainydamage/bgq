@@ -1,8 +1,10 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
-import { addMinutes, clockIn, type Kp, type Plan, type Problem } from '@bgq/core';
+import { addMinutes, clock, clockIn, type Kp, type Plan, type Problem } from '@bgq/core';
 import { RoutingError } from './osrm.ts';
+
+export { clock };
 
 /** Python-солвер (OR-Tools, uv-проект). */
 export const SOLVER_DIR = resolve(import.meta.dirname, '../../../solver');
@@ -51,13 +53,6 @@ export function defaultDepart(t0: string, tz: string, now: Date = new Date()): s
   const { date, hhmm } = clockIn(tz, now);
   if (date !== t0.slice(0, 10) || hhmm <= t0.slice(11, 16)) return undefined;
   return addMinutes(hhmm, DEPART_LAG_MIN);
-}
-
-/** «ЧЧ:ММ» местного времени: t0 (с часовым поясом игры) + s секунд. */
-export function clock(t0: string, s: number): string {
-  const total = Number(t0.slice(11, 13)) * 60 + Number(t0.slice(14, 16)) + Math.round(s / 60);
-  const h = Math.floor(total / 60) % 24;
-  return `${String(h).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
 }
 
 const km = (m: number) => `${(m / 1000).toFixed(1).replace('.', ',')} км`;

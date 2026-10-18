@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 // ./bgq kml [--date ГГГГ-ММ-ДД] [--all] — points.json (+ plan.json) → games/<дата>/points.kml для Organic Maps.
-import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { Plan, PointsFile, schemaErrors } from '@bgq/core';
+import { type Plan, PointsFile, schemaErrors } from '@bgq/core';
 import { citySlug } from '@bgq/geo';
 import { currentGameDir, InitError, loadGame } from '@bgq/ingest';
 import {
   cityGraphDir,
   dockerAvailable,
+  freshPlan,
   graphReady,
   osrmRoute,
-  problemHash,
   RoutingError,
   withOsrm,
 } from '@bgq/routing';
@@ -69,24 +69,6 @@ const points: unknown = JSON.parse(readFileSync(pointsPath, 'utf8'));
 const errors = schemaErrors(PointsFile, points);
 if (errors.length) fail(`✗ ${rel(pointsPath)}: ${errors.join('; ')} — пересоберите ./bgq table`);
 
-/** plan.json, если он построен по текущему problem.json, а тот — не старее points.json. */
-function loadPlan(): { plan?: Plan; why?: string } {
-  const planPath = join(gameDir, 'plan.json');
-  const problemPath = join(gameDir, 'problem.json');
-  if (!existsSync(planPath)) return {};
-  const plan: unknown = JSON.parse(readFileSync(planPath, 'utf8'));
-  const errors = schemaErrors(Plan, plan);
-  if (errors.length) return { why: `plan.json не проходит схему: ${errors.join('; ')}` };
-  if (!existsSync(problemPath)) return { why: 'нет problem.json' };
-  if (statSync(pointsPath).mtimeMs > statSync(problemPath).mtimeMs) {
-    return { why: 'points.json новее problem.json' };
-  }
-  if ((plan as Plan).problemHash !== problemHash(readFileSync(problemPath))) {
-    return { why: 'problem.json изменился после ./bgq solve' };
-  }
-  return { plan: plan as Plan };
-}
-
 /** Линия маршрута по улицам: OSRM в Docker поднимается на один запрос (~1 с). */
 async function streetPath(
   t: PointsFile,
@@ -109,7 +91,7 @@ async function streetPath(
 }
 
 const game = loadGame(join(gameDir, 'game.json'));
-const { plan, why } = loadPlan();
+const { plan, why } = freshPlan(gameDir);
 const street = plan && !values.straight ? await streetPath(points as PointsFile, plan) : {};
 const { kml, placemarks, skipped, planMissing, unsolved } = buildKml(
   points as PointsFile,
