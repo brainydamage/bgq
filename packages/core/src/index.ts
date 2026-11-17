@@ -3,6 +3,7 @@ export * from './ids.ts';
 export * from './phone.ts';
 export * from './points.ts';
 export * from './riddles.ts';
+export * from './schedule.ts';
 export * from './schema/common.ts';
 export * from './schema/event.ts';
 export * from './schema/game.ts';

@@ -2,6 +2,7 @@ import Type, { type Static } from 'typebox';
 import { HHMM, IsoDate, IsoDateTime, Loc } from './common.ts';
 import { Kp } from './kp.ts';
 import { Plan } from './plan.ts';
+import { Problem } from './problem.ts';
 import { SheetTask } from './riddle.ts';
 import { SyncConfig } from './sync.ts';
 
@@ -28,6 +29,11 @@ export const PhoneGame = Type.Object(
     finish: Type.Optional(Loc),
     /** Свежий plan.json (не старее problem.json и points.json); устаревший не кладётся. */
     plan: Type.Optional(Plan),
+    /**
+     * Задача, по которой построен план (problem.json: матрица, окна, время на точках) — прогноз
+     * финиша прямым проходом на телефоне. Только вместе с планом.
+     */
+    problem: Type.Optional(Problem),
     /** Синхронизация событий между телефонами (`games/sync.json`). Нет — отметки только локально. */
     sync: Type.Optional(SyncConfig),
   },

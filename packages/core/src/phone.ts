@@ -1,18 +1,20 @@
 import type { Game } from './schema/game.ts';
 import type { PhoneGame } from './schema/phone.ts';
 import type { Plan } from './schema/plan.ts';
+import type { Problem } from './schema/problem.ts';
 import type { RiddlesFile } from './schema/riddle.ts';
 import type { PointsFile } from './schema/table.ts';
 
 /**
  * game.json + riddles.json (может не быть) + points.json и свежий plan.json (могут не быть) →
- * phone.json. На телефон идут только доступные КП; план — как есть (проверьте planMissing).
+ * phone.json. На телефон идут только доступные КП; план — как есть (проверьте planMissing),
+ * задача — только вместе с планом (та, по которой он построен).
  */
 export function phoneGame(
   game: Game,
   riddles: RiddlesFile | null,
   exportedAt: string,
-  route: { points: PointsFile; plan?: Plan } | null = null,
+  route: { points: PointsFile; plan?: Plan; problem?: Problem } | null = null,
 ): PhoneGame {
   return {
     v: 1,
@@ -28,6 +30,7 @@ export function phoneGame(
       ...(route.points.start && { start: route.points.start }),
       ...(route.points.finish && { finish: route.points.finish }),
       ...(route.plan && { plan: route.plan }),
+      ...(route.plan && route.problem && { problem: route.problem }),
     }),
   };
 }

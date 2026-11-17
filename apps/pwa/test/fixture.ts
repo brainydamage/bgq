@@ -6,6 +6,7 @@ import {
   type MapFileResults,
   type Plan,
   type PointsFile,
+  type Problem,
   parseRiddleSheets,
   type SheetTask,
   taskId,
@@ -19,6 +20,8 @@ export const fx = (name: string) =>
 export const game = JSON.parse(fx('game.json')) as Game;
 // План солвера по fixtures/2026-10-10/problem.json: выход 12:30, 37 КП, 207 б.
 export const plan = JSON.parse(fx('plan.json')) as Plan;
+// Задача, по которой построен план: матрица, окна, время на точках.
+export const problem = JSON.parse(fx('problem.json')) as Problem;
 
 /** Таблица 10.10 + старт и финиш, как если бы их отметили на карте (как в kml.test.ts). */
 export function table(): PointsFile {

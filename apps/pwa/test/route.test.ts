@@ -20,10 +20,10 @@ import {
   takenSummary,
 } from '../src/route.ts';
 import { parseHash, screenHash } from '../src/router.ts';
-import { game, plan, table } from './fixture.ts';
+import { game, plan, problem, table } from './fixture.ts';
 
 const points = table();
-const phone = phoneGame(game, null, '2026-10-10T12:20:00.000Z', { points, plan });
+const phone = phoneGame(game, null, '2026-10-10T12:20:00.000Z', { points, plan, problem });
 
 let seq = 0;
 /** Событие в момент «ЧЧ:ММ» дня игры (+02:00). */
@@ -46,6 +46,7 @@ describe('phone.json с КП и планом (10.10)', () => {
     expect(phone.start).toMatchObject({ lat: 44.9776 });
     expect(phone.finish).toMatchObject({ lat: 44.9705 });
     expect(phone.plan?.stops).toHaveLength(37);
+    expect(phone.problem?.nodes).toHaveLength(78);
     expect(planMissing(plan, points)).toEqual([]);
     expect(schemaErrors(PhoneGame, phone)).toEqual([]);
   });
@@ -153,6 +154,8 @@ describe('прогноз: опережение, отставание, пауза
   const pauseEv = (type: 'pause_started' | 'pause_ended', s: number) =>
     makeEvent(game.id, 'pause', { type }, { deviceId: 'iphone', seq: 900 + s }, at(s));
   type F = NonNullable<ReturnType<typeof forecast>>;
+  /** Дедлайн 19:30 от t0 12:30. */
+  const DEADLINE_S = 7 * 3600;
 
   it('по плану: финиш солвера и запас до настоящего дедлайна', () => {
     const f = forecast(phone, rows.plan, at(0)) as F;
@@ -179,10 +182,13 @@ describe('прогноз: опережение, отставание, пауза
     const f = forecast(phone, takenFirst(time), at(sOf(time))) as F;
     expect(lead).toBeLessThanOrEqual(-11);
     expect(f.deltaMin).toBe(lead);
-    expect(f.slackMin).toBe(-lead);
+    // Прямой проход — в секундах: запас плана 13 с + опережение.
+    const slack = Math.round((DEADLINE_S - plan.finishS - (sOf(time) - first.departS)) / 60);
+    expect(slack).toBeGreaterThanOrEqual(-lead);
+    expect(f.slackMin).toBe(slack);
     expect(forecastText(f)).toEqual([
       { text: `опережаем на ${-lead} мин`, warn: false },
-      { text: `на паузу ещё ${-lead} мин · ожидаемый финиш ${f.finish}`, warn: false },
+      { text: `на паузу ещё ${slack} мин · ожидаемый финиш ${f.finish}`, warn: false },
     ]);
   });
 
@@ -218,6 +224,45 @@ describe('прогноз: опережение, отставание, пауза
         warn: false,
       },
     ]);
+  });
+
+  it('пропуск возвращает время: финиш прямым проходом раньше, запас больше', () => {
+    const third = plan.stops[2] as Plan['stops'][number];
+    const skipped = routeRows(
+      phone,
+      projectState(
+        [
+          ev(first.kpId, { type: 'taken', answerTime: hhmm(first.departS) }, hhmm(first.departS)),
+          ev(second.kpId, { type: 'skipped' }, hhmm(first.departS)),
+        ],
+        game.id,
+      ),
+    ).plan;
+    const f = forecast(phone, skipped, at(first.departS + 60)) as F;
+    expect(f.deltaMin).toBe(0);
+    const saved = second.departS - first.departS + (third.arriveS - second.departS);
+    expect(f.slackMin).toBeGreaterThan(5);
+    expect(f.slackMin).toBeLessThan(Math.round(saved / 60));
+    // Без задачи в phone.json — по-старому: пропуск времени не возвращает.
+    const { problem: _, ...noProblem } = phone;
+    expect(forecast(noProblem, skipped, at(first.departS + 60))?.slackMin).toBe(0);
+  });
+
+  it('окно КП 120 (с 14:00) — ожидание съедает опережение до него', () => {
+    const k = plan.stops.findIndex((s) => s.kpId === '120');
+    const before = plan.stops[k - 1] as Plan['stops'][number];
+    const r = routeRows(
+      phone,
+      projectState(
+        plan.stops
+          .slice(0, k)
+          .map((s) => ev(s.kpId, { type: 'taken', answerTime: hhmm(s.departS) }, hhmm(s.departS))),
+        game.id,
+      ),
+    ).plan;
+    // Пришли к 120 вовремя: окно уже открыто, финиш — по плану.
+    const onTime = forecast(phone, r, at(before.departS)) as F;
+    expect(onTime.slackMin).toBe(0);
   });
 
   it('не в день игры — без отклонения; без плана — null', () => {

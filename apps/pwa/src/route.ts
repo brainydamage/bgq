@@ -5,9 +5,12 @@ import {
   type Kp,
   type KpState,
   type Loc,
+  nodeIndex,
   type Pauses,
   type PhoneGame,
   pausedBefore,
+  planDepartS,
+  schedule,
 } from '@bgq/core';
 
 /** Сколько следующих точек показывает штурман. */
@@ -95,7 +98,11 @@ export interface Forecast {
   pausedMin: number;
   /** Идущая пауза: с какого времени и сколько уже. */
   pause?: { since: string; min: number };
-  /** Прогноз финиша без новых пауз: план + пауза + отклонение. */
+  /**
+   * Прогноз финиша без новых пауз. С задачей в phone.json — прямой проход от последней взятой
+   * точки по оставшимся открытым точкам плана (пропуски возвращают время, окна ждём); без неё —
+   * план + пауза + отклонение.
+   */
   finish: string;
   /** Запас до дедлайна по прогнозу = сколько ещё можно на паузу; < 0 — опоздание. */
   slackMin: number;
@@ -109,17 +116,48 @@ function secondsFromT0(t0: string, hhmm: string): number {
 }
 
 /**
+ * Финиш по прогнозу прямым проходом (с задачей в phone.json): из последней взятой точки плана в
+ * момент «взято» (+ пауза после него) по открытым точкам плана к финишу; к первой — не раньше
+ * «сейчас». Нет взятых — со старта по плану. Точки плана нет в задаче — null (считаем по-старому).
+ */
+function forwardFinishS(
+  problem: NonNullable<PhoneGame['problem']>,
+  p: NonNullable<PhoneGame['plan']>,
+  plan: readonly KpRow[],
+  nowS: number,
+  pausedS: (atS: number) => number,
+): number | null {
+  const index = nodeIndex(problem);
+  let from = problem.start;
+  let t = planDepartS(problem, p);
+  let lastTakenS = Number.NEGATIVE_INFINITY;
+  for (const r of plan) {
+    if (r.status !== 'taken' || !r.answerTime) continue;
+    const takenS = secondsFromT0(p.t0, r.answerTime);
+    const node = index.get(r.kp.id);
+    if (takenS < lastTakenS || node === undefined) continue;
+    lastTakenS = takenS;
+    from = node;
+    t = takenS;
+  }
+  const open = plan.filter((r) => r.status === 'open').map((r) => r.kp.id);
+  if (open.some((id) => !index.has(id))) return null;
+  const departS = t + Math.max(0, pausedS(nowS) - pausedS(t));
+  return schedule(problem, open, departS, { from, notBeforeS: nowS, index }).finishS;
+}
+
+/**
  * Финиш, запас и отклонение от плана.
  * - Время паузы сдвигает весь план: оно не отставание, а трата резерва (запаса до дедлайна).
  * - Отклонение — худшее из двух: насколько позже плана отметили «взято» последнюю взятую точку
  *   плана (время «взято» — когда закончили, сравниваем с уходом по плану; раньше — опережение),
  *   и насколько «сейчас» позже прихода к следующей открытой точке (или к финишу).
  * - Запас — до настоящего дедлайна игры: резерв на паузу (план солвер строил на столько раньше),
- *   плюс запас самого плана, минус пауза, минус отставание (плюс опережение).
- * Пропуски время не возвращают напрямую: к следующей точке просто приходим раньше.
+ *   плюс запас самого плана, минус пауза, минус отставание (плюс опережение); с задачей в
+ *   phone.json финиш — прямым проходом, и пропуск точки возвращает время.
  */
 export function forecast(
-  game: Pick<PhoneGame, 'date' | 'tz' | 'plan' | 'deadline'>,
+  game: Pick<PhoneGame, 'date' | 'tz' | 'plan' | 'deadline' | 'problem'>,
   plan: readonly KpRow[],
   now: Date,
   pauses: Pauses = { closed: [] },
@@ -132,6 +170,7 @@ export function forecast(
   const deadlineS = secondsFromT0(p.t0, game.deadline);
 
   let deltaS = 0;
+  let forwardS: number | null = null;
   if (clockIn(game.tz, now).date === game.date) {
     const target = nextStops(plan, 1)[0]?.stop?.arriveS ?? p.finishS;
     const late = nowS - (target + pausedS(nowS));
@@ -145,10 +184,11 @@ export function forecast(
       last = takenS - (r.stop.departS + pausedS(takenS));
     }
     deltaS = last === undefined ? Math.max(0, late) : Math.max(last, late);
+    if (game.problem) forwardS = forwardFinishS(game.problem, p, plan, nowS, pausedS);
   }
-  const deltaMin = Math.round(deltaS / 60);
+  const deltaMin = Math.round(deltaS / 60) + 0; // + 0: без «-0»
   const pausedMin = Math.round(pausedS(nowS) / 60);
-  const finishS = p.finishS + pausedMin * 60 + deltaMin * 60;
+  const finishS = forwardS ?? p.finishS + pausedMin * 60 + deltaMin * 60;
   return {
     planFinish: clock(p.t0, p.finishS),
     planSlackMin: Math.round((deadlineS - p.finishS) / 60),
@@ -161,7 +201,8 @@ export function forecast(
       },
     }),
     finish: clock(p.t0, finishS),
-    slackMin: Math.round((deadlineS - finishS) / 60),
+    // + 0: без «-0» после округления.
+    slackMin: Math.round((deadlineS - finishS) / 60) + 0,
   };
 }
 

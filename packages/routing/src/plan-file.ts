@@ -1,13 +1,14 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { Plan, schemaErrors } from '@bgq/core';
+import { Plan, Problem, schemaErrors } from '@bgq/core';
 import { problemHash } from './solve.ts';
 
 /**
  * plan.json игры, если он построен по текущему problem.json, а тот — не старее points.json.
  * Нет плана — `{}`; устарел или битый — `why` (KML и телефон тогда идут без маршрута).
+ * Вместе со свежим планом — и его problem.json (телефону — для прогноза прямым проходом).
  */
-export function freshPlan(gameDir: string): { plan?: Plan; why?: string } {
+export function freshPlan(gameDir: string): { plan?: Plan; problem?: Problem; why?: string } {
   const planPath = join(gameDir, 'plan.json');
   const problemPath = join(gameDir, 'problem.json');
   const pointsPath = join(gameDir, 'points.json');
@@ -19,8 +20,13 @@ export function freshPlan(gameDir: string): { plan?: Plan; why?: string } {
   if (existsSync(pointsPath) && statSync(pointsPath).mtimeMs > statSync(problemPath).mtimeMs) {
     return { why: 'points.json новее problem.json' };
   }
-  if ((plan as Plan).problemHash !== problemHash(readFileSync(problemPath))) {
+  const raw = readFileSync(problemPath);
+  if ((plan as Plan).problemHash !== problemHash(raw)) {
     return { why: 'problem.json изменился после ./bgq solve' };
   }
-  return { plan: plan as Plan };
+  const problem: unknown = JSON.parse(raw.toString('utf8'));
+  const problemErrors = schemaErrors(Problem, problem);
+  if (problemErrors.length)
+    return { why: `problem.json не проходит схему: ${problemErrors.join('; ')}` };
+  return { plan: plan as Plan, problem: problem as Problem };
 }

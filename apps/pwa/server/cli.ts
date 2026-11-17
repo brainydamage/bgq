@@ -102,13 +102,13 @@ function exportPhone(): Exported {
   if (!points) {
     warnings.push('нет points.json — на телефоне только задания; ./bgq route');
   } else {
-    const { plan, why } = freshPlan(gameDir);
+    const { plan, problem, why } = freshPlan(gameDir);
     const missing = plan ? planMissing(plan, points) : [];
     if (why) warnings.push(`план устарел (${why}) — не добавлен; ./bgq route`);
     else if (!plan) warnings.push('плана нет (./bgq route) — КП без порядка');
     else if (missing.length)
       warnings.push(`в плане КП не с этой карты: ${missing.join(', ')} — план не добавлен`);
-    route = { points, ...(plan && !missing.length && { plan }) };
+    route = { points, ...(plan && !missing.length && { plan, ...(problem && { problem }) }) };
   }
   // Адрес и код синхронизации — общие для всех игр: terraform -chdir=infra output -json sync.
   const sync = readJson<SyncConfig>(

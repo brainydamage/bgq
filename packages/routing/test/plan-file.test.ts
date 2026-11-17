@@ -18,10 +18,11 @@ function gameDir(): string {
 }
 
 describe('freshPlan: plan.json не устарел', () => {
-  it('план по текущему problem.json — берётся', () => {
-    const { plan, why } = freshPlan(gameDir());
+  it('план по текущему problem.json — берётся вместе с задачей', () => {
+    const { plan, problem, why } = freshPlan(gameDir());
     expect(why).toBeUndefined();
     expect(plan?.stops).toHaveLength(37);
+    expect(problem?.nodes).toHaveLength(78);
   });
 
   it('нет plan.json — ни плана, ни причины', () => {
