@@ -24,9 +24,36 @@ interface SwScope {
 const sw = self as unknown as SwScope;
 const CACHE = `bgq-${__BGQ_VERSION__}`;
 
+/** Страница ссылается только на файлы этой сборки (не старый index.html со старыми скриптами). */
+function sameBuild(html: string): boolean {
+  for (const m of html.matchAll(/(?:src|href)="\.\/([^"]+)"/g))
+    if (!__BGQ_PRECACHE__.includes(m[1] as string)) return false;
+  return true;
+}
+
+async function precache(): Promise<void> {
+  // cache: 'reload' — мимо HTTP-кэша: Pages отдаёт max-age=600, и index.html мог прийти старый,
+  // со ссылками на скрипты, которых уже нет, — после «Обновить» белый экран.
+  const got = await Promise.all(
+    __BGQ_PRECACHE__.map(async (url) => {
+      const req = new Request(url, { cache: 'reload' });
+      const res = await fetch(req);
+      if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
+      return { url, req, res };
+    }),
+  );
+  for (const { url, res } of got)
+    if ((url === './' || url === 'index.html') && !sameBuild(await res.clone().text()))
+      throw new Error(`${url}: другая сборка (CDN ещё не обновился)`);
+  const cache = await caches.open(CACHE);
+  await Promise.all(got.map(({ req, res }) => cache.put(req, res)));
+}
+
 sw.addEventListener('install', (e) => {
   // Новая версия ждёт кнопки «Обновить» (skipWaiting) — не подменяет страницу посреди ввода.
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(__BGQ_PRECACHE__)));
+  // Не скачалась целиком или вперемешку со старой — установка не удалась, остаётся прежняя;
+  // повтор — при следующей проверке обновления.
+  e.waitUntil(precache().catch((err) => caches.delete(CACHE).then(() => Promise.reject(err))));
 });
 
 sw.addEventListener('activate', (e) => {

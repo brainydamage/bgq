@@ -6,3 +6,5 @@ import './style.css';
 registerServiceWorker();
 const root = document.getElementById('app');
 if (root) render(<App />, root);
+// Запустились — index.html не покажет «Починить».
+document.documentElement.dataset.started = '1';

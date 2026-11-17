@@ -12,6 +12,33 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="BGQ" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <script>
+      // Не белый экран: если приложение не запустилось (скрипт не загрузился или упал) —
+      // «Починить»: снять service worker и кэш оболочки и загрузить заново (нужна сеть).
+      // Данные игры (IndexedDB) не трогаем.
+      (function () {
+        function rescue() {
+          if (document.documentElement.dataset.started || document.getElementById('rescue')) return;
+          var d = document.createElement('div');
+          d.id = 'rescue';
+          d.style.cssText = 'padding:24px 16px;font:16px/1.4 -apple-system,system-ui,sans-serif';
+          d.innerHTML =
+            '<p><b>Приложение не запустилось.</b></p>' +
+            '<p>Нужна сеть. Ответы и события на телефоне сохранятся.</p>' +
+            '<button type="button" style="font:inherit;padding:10px 16px">Починить и перезапустить</button>';
+          d.querySelector('button').onclick = function () {
+            var sw = navigator.serviceWorker;
+            Promise.all([
+              sw ? sw.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }) : null,
+              window.caches ? caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k.indexOf('bgq-') === 0; }).map(function (k) { return caches.delete(k); })); }) : null,
+            ]).then(null, function () {}).then(function () { location.reload(); });
+          };
+          (document.body || document.documentElement).appendChild(d);
+        }
+        addEventListener('error', function (e) { if (e.target && e.target.tagName === 'SCRIPT') rescue(); }, true);
+        addEventListener('load', function () { setTimeout(rescue, 3000); });
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>
