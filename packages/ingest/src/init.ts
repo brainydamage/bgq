@@ -54,7 +54,9 @@ export interface CheckField {
     /** время запуска init — получили комплект */
     | 'now'
     /** в экспорте другое значение, взято не оно — проверить */
-    | 'conflict';
+    | 'conflict'
+    /** из game.json, заготовленного заранее в каталоге игры */
+    | 'prepared';
 }
 
 export interface InitResult {
@@ -62,8 +64,8 @@ export interface InitResult {
   gameDir: string;
   /** Куда перенесён исходный экспорт из gamesDir. */
   archived: string;
-  /** Откуда взят game.json; null — game.json уже был в каталоге. */
-  from: string | null;
+  /** Откуда взят game.json; сам каталог игры — game.json был заготовлен заранее и дополнен. */
+  from: string;
   /** «Export.zip › Осенний БеоГеоКвест.md» */
   mdLabel: string;
   check: CheckField[];
@@ -73,7 +75,8 @@ export interface InitResult {
  * Берёт единственный экспорт Notion (.zip или .md) из gamesDir и создаёт gamesDir/<дата>/:
  * game.json из прошлой игры (id, date, финиш из экспорта), notion-export.orig.md и рабочую
  * копию notion-export.md. Исходный экспорт переносится в каталог игры, чтобы gamesDir
- * оставался чистым. Ничего не перезаписывает; при ошибке ничего не пишет и не переносит.
+ * оставался чистым. game.json, заготовленный заранее в каталоге игры, берётся вместо прошлой
+ * игры и дополняется. Экспорт не перезаписывает; при ошибке ничего не пишет и не переносит.
  */
 export function initGame(o: InitOptions): InitResult {
   const date = o.date ?? todayLocal();
@@ -95,27 +98,22 @@ export function initGame(o: InitOptions): InitResult {
   const md = readExport(source);
   const gamePath = join(gameDir, 'game.json');
   const existing = existsSync(gamePath);
-  let game: Game;
-  let from: string | null = null;
-  let check: CheckField[];
-  if (existing) {
-    game = loadGame(gamePath);
-    check = [];
-  } else {
-    from = o.from ?? latestGameDir(o.gamesDir, date);
-    if (!from) {
-      throw new InitError(
-        `В ${o.gamesDir} нет ни прошлой игры, ни ${TEMPLATE_DIR}/game.json — передайте --from <каталог с game.json>`,
-      );
-    }
-    ({ game, check } = gameFromPrevious(loadGame(join(from, 'game.json')), date, md.text, {
-      ...(o.start !== undefined && { start: o.start }),
-      now: o.now ?? new Date(),
-    }));
+  // Заготовка в каталоге игры (город, категория, старт — известны заранее) важнее прошлой игры:
+  // её дополняем так же, как прошлую (--start, дедлайн, комплект, финиш из экспорта).
+  const from = existing ? gameDir : (o.from ?? latestGameDir(o.gamesDir, date));
+  if (!from) {
+    throw new InitError(
+      `В ${o.gamesDir} нет ни прошлой игры, ни ${TEMPLATE_DIR}/game.json — передайте --from <каталог с game.json>`,
+    );
   }
+  const { game, check } = gameFromPrevious(loadGame(join(from, 'game.json')), date, md.text, {
+    ...(o.start !== undefined && { start: o.start }),
+    now: o.now ?? new Date(),
+    prepared: existing,
+  });
 
   mkdirSync(gameDir, { recursive: true });
-  if (!existing) writeFileSync(gamePath, `${JSON.stringify(game, null, 2)}\n`);
+  writeFileSync(gamePath, `${JSON.stringify(game, null, 2)}\n`);
   if (isZip) writeFileSync(join(gameDir, ORIG_MD), md.text);
   writeFileSync(join(gameDir, WORK_MD), md.text);
   // .md сам становится оригиналом; .zip сохраняем рядом как есть.
@@ -149,15 +147,20 @@ function findExport(gamesDir: string): string {
  * game.json прошлой игры → новой: id/date, координаты сброшены. Старт — из --start (у каждой
  * команды свой), дедлайн = старт + длительность игры (9 ч), комплект получен — сейчас (если
  * init запущен в день игры после старта); штраф, опоздание и адрес финиша — из экспорта.
+ * prepared — game.json заготовлен заранее для этой игры: его старт не устарел, а координаты
+ * старта/финиша и адрес финиша (если в экспорте нет своего) остаются.
  */
 function gameFromPrevious(
   prev: Game,
   date: string,
   md: string,
-  o: { start?: string; now: Date },
+  o: { start?: string; now: Date; prepared?: boolean },
 ): { game: Game; check: CheckField[] } {
   const finish = parseNotion(md, prev).finish;
-  const { address: _prevAddress, loc: _finishLoc, ...prevFinish } = prev.finish;
+  const { address: prevAddress, loc: finishLoc, ...prevFinish } = prev.finish;
+  const kept = o.prepared
+    ? { address: prevAddress, finishLoc, startLoc: prev.start.loc }
+    : { address: undefined, finishLoc: undefined, startLoc: undefined };
   const durationMin = prev.durationMin ?? DEFAULT_DURATION_MIN;
   const time = o.start ?? prev.start.time;
   const deadline = addMinutes(time, durationMin);
@@ -168,10 +171,12 @@ function gameFromPrevious(
     ...prev,
     id: date,
     date,
-    start: { time, ...(depart && { depart }) },
+    start: { time, ...(depart && { depart }), ...(kept.startLoc && { loc: kept.startLoc }) },
     durationMin,
     finish: {
       ...prevFinish,
+      ...(kept.address && { address: kept.address }),
+      ...(kept.finishLoc && { loc: kept.finishLoc }),
       deadline,
       ...(finish?.graceMin !== undefined && { graceMin: finish.graceMin }),
       ...(finish?.penaltyPerMin !== undefined && { penaltyPerMin: finish.penaltyPerMin }),
@@ -179,11 +184,16 @@ function gameFromPrevious(
     },
   };
 
+  const base: CheckField['origin'] = o.prepared ? 'prepared' : 'previous';
   const origin = (fromExport: unknown): CheckField['origin'] =>
-    fromExport !== undefined ? 'export' : 'previous';
+    fromExport !== undefined ? 'export' : base;
   const check: CheckField[] = [
-    { path: 'city', value: game.city, origin: 'previous' },
-    { path: 'start.time', value: game.start.time, origin: o.start ? 'arg' : 'stale' },
+    { path: 'city', value: game.city, origin: base },
+    {
+      path: 'start.time',
+      value: game.start.time,
+      origin: o.start ? 'arg' : o.prepared ? 'prepared' : 'stale',
+    },
     { path: 'start.depart', value: game.start.depart, origin: depart ? 'now' : 'missing' },
     { path: 'finish.deadline', value: game.finish.deadline, origin: 'computed' },
     ...(finish?.deadline && finish.deadline !== deadline
@@ -202,9 +212,9 @@ function gameFromPrevious(
     {
       path: 'finish.address',
       value: game.finish.address,
-      origin: finish?.address ? 'export' : 'missing',
+      origin: finish?.address ? 'export' : kept.address ? 'prepared' : 'missing',
     },
-    { path: 'category', value: game.category, origin: 'previous' },
+    { path: 'category', value: game.category, origin: base },
   ];
   return { game, check };
 }

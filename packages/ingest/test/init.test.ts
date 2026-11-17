@@ -188,14 +188,60 @@ describe('initGame', () => {
     expect(readJson(join(other.gameDir, 'game.json')).city).toBe('Сремска Митровица');
   });
 
-  it('game.json уже подготовлен заранее — не трогаем', () => {
-    const prepared = { ...fixtureGame, id: DATE, date: DATE, city: 'Нови Сад' };
+  it('заготовка game.json в каталоге игры важнее прошлой игры: город и старт из неё', () => {
+    const prepared: Game = {
+      ...fixtureGame,
+      id: DATE,
+      date: DATE,
+      city: 'Београд',
+      start: { time: '10:04' },
+      finish: { deadline: '19:04', graceMin: 30, penaltyPerMin: 1 },
+    };
     writeGame(gameDir(), prepared);
     dropExport('e.md', fixtureMd);
-    const r = initGame({ gamesDir, date: DATE });
-    expect(r.from).toBeNull();
-    expect(r.check).toEqual([]);
-    expect(readJson(join(gameDir(), 'game.json'))).toEqual(prepared);
+    const r = initGame({ gamesDir, date: DATE, now: new Date('2026-12-05T11:20:00Z') }); // 12:20
+    expect(r.from).toBe(gameDir());
+    const game = readJson(join(gameDir(), 'game.json'));
+    expect(game).toMatchObject({ id: DATE, city: 'Београд', category: 'pro' });
+    expect(game.start).toEqual({ time: '10:04', depart: '12:20' });
+    expect(game.finish).toEqual({
+      deadline: '19:04',
+      graceMin: 30,
+      penaltyPerMin: 1,
+      address: 'Улица Короля Петра Первого дом 15',
+    });
+    expect(Object.fromEntries(r.check.map((f) => [f.path, f.origin]))).toMatchObject({
+      city: 'prepared',
+      'start.time': 'prepared',
+      'start.depart': 'now',
+      'finish.deadline': 'computed',
+      'finish.address': 'export',
+      category: 'prepared',
+    });
+  });
+
+  it('заготовка: --start важнее, координаты старта/финиша и адрес без экспорта остаются', () => {
+    writeGame(gameDir(), {
+      ...fixtureGame,
+      id: DATE,
+      date: DATE,
+      city: 'Београд',
+      start: { time: '10:04', loc },
+      finish: { deadline: '19:04', graceMin: 30, penaltyPerMin: 1, address: 'Трг Славија', loc },
+    });
+    dropExport('e.md', '**10 Улица Водна 45**\n\nВопрос');
+    const r = initGame({ gamesDir, date: DATE, start: '10:15' });
+    const game = readJson(join(gameDir(), 'game.json'));
+    expect(game.start).toEqual({ time: '10:15', loc });
+    expect(game.finish).toEqual({
+      deadline: '19:15',
+      graceMin: 30,
+      penaltyPerMin: 1,
+      address: 'Трг Славија',
+      loc,
+    });
+    const check = Object.fromEntries(r.check.map((f) => [f.path, f.origin]));
+    expect(check).toMatchObject({ 'start.time': 'arg', 'finish.address': 'prepared' });
   });
 });
 

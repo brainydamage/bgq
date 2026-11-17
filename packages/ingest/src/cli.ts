@@ -132,9 +132,10 @@ function runInit(options: InitOptions): number {
   }
 
   const dir = rel(result.gameDir);
-  const gameJsonNote = result.from
-    ? `из ${rel(result.from)} (id и date обновлены)`
-    : 'уже был, не трогал';
+  const gameJsonNote =
+    result.from === result.gameDir
+      ? 'заготовка дополнена (старт, дедлайн, комплект, финиш из экспорта)'
+      : `из ${rel(result.from)} (id и date обновлены)`;
   const archivedName = basename(result.archived);
   const lines = [
     `✓ ${dir}`,
@@ -167,6 +168,7 @@ const ORIGIN: Record<CheckField['origin'], string> = {
   computed: 'старт + длительность игры (durationMin)',
   now: 'сейчас — получили комплект (выход на маршрут)',
   conflict: 'в Notion другой дедлайн — проверьте, какой верный',
+  prepared: 'из заготовки game.json',
 };
 
 function formatCheck(fields: CheckField[]): string {
