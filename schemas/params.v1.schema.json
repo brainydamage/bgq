@@ -58,6 +58,10 @@
     "restMin": {
       "type": "number",
       "minimum": 0
+    },
+    "pauseMin": {
+      "type": "number",
+      "minimum": 0
     }
   },
   "additionalProperties": false

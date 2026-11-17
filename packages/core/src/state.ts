@@ -40,6 +40,7 @@ export function projectState(events: readonly Event[], gameId: string): Map<stri
   const state = new Map<string, KpState>();
   for (const e of orderEvents(events)) {
     if (e.gameId !== gameId) continue;
+    if (e.type === 'pause_started' || e.type === 'pause_ended') continue;
     const s = state.get(e.kpId) ?? { kpId: e.kpId, status: 'open', solved: false, updatedAt: '' };
     s.updatedAt = e.clientTs;
     switch (e.type) {
@@ -76,4 +77,35 @@ export function projectState(events: readonly Event[], gameId: string): Map<stri
     state.set(e.kpId, s);
   }
   return state;
+}
+
+/** Паузы игры: закрытые [начало, конец] и начатая, мс (Date). */
+export interface Pauses {
+  closed: [startMs: number, endMs: number][];
+  /** Начало идущей паузы; нет — сейчас не на паузе. */
+  openSince?: number;
+}
+
+/** События → паузы. «Закончили» без «начали» и второе «начали» подряд не считаются. */
+export function projectPauses(events: readonly Event[], gameId: string): Pauses {
+  const closed: Pauses['closed'] = [];
+  let openSince: number | undefined;
+  for (const e of orderEvents(events)) {
+    if (e.gameId !== gameId) continue;
+    const at = Date.parse(e.clientTs);
+    if (e.type === 'pause_started' && openSince === undefined) openSince = at;
+    else if (e.type === 'pause_ended' && openSince !== undefined) {
+      closed.push([openSince, Math.max(openSince, at)]);
+      openSince = undefined;
+    }
+  }
+  return openSince === undefined ? { closed } : { closed, openSince };
+}
+
+/** Сколько мс паузы пришлось на время до `untilMs` (идущая пауза — по `untilMs`). */
+export function pausedBefore(p: Pauses, untilMs: number): number {
+  let ms = 0;
+  for (const [a, b] of p.closed) ms += Math.max(0, Math.min(b, untilMs) - a);
+  if (p.openSince !== undefined) ms += Math.max(0, untilMs - p.openSince);
+  return ms;
 }

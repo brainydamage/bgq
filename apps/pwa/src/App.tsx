@@ -1,4 +1,11 @@
-import { clockIn, type Event, PhoneGame, projectState, schemaErrors } from '@bgq/core';
+import {
+  clockIn,
+  type Event,
+  PhoneGame,
+  projectPauses,
+  projectState,
+  schemaErrors,
+} from '@bgq/core';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { BookView } from './BookView.tsx';
 import {
@@ -18,7 +25,7 @@ import {
   visibleRows,
 } from './checklist.ts';
 import { appendEvent, loadCurrent, saveGame, syncStore } from './db.ts';
-import { type Body, makeEvent, toggleBody } from './events.ts';
+import { type Body, makeEvent, PAUSE_ID, toggleBody } from './events.ts';
 import { KpCard } from './KpCard.tsx';
 import { NavView } from './NavView.tsx';
 import { RouteView } from './RouteView.tsx';
@@ -163,7 +170,12 @@ export function App() {
   const summary = summarize(rows);
   const clock = game ? clockIn(game.tz, now) : null;
   const reminder = game && clock ? finishReminder(rows, game, clock) : null;
-  const fc = game ? forecast(game, route.plan, now) : null;
+  const pauses = useMemo(
+    () => (game ? projectPauses(events, game.gameId) : { closed: [] }),
+    [game, events],
+  );
+  const onPause = pauses.openSince !== undefined;
+  const fc = game ? forecast(game, route.plan, now, pauses) : null;
   const taken = takenSummary(route);
 
   // Экран: из хэша; по умолчанию — маршрут, если в игре есть КП, иначе задания.
@@ -214,6 +226,8 @@ export function App() {
     try {
       const e = await appendEvent((device) => makeEvent(game.gameId, kpId, body, device));
       setEvents((prev) => [...prev, e]);
+      // Прогноз — от свежего «сейчас», не от последнего тика в 30 с (нажали «Пауза»).
+      setNow(new Date());
       syncer.current?.kick();
     } catch (e) {
       setError(`Не сохранилось: ${(e as Error).message}`);
@@ -276,13 +290,24 @@ export function App() {
         {game && (screen.name === 'route' || screen.name === 'nav') && (
           <div class="summary">
             {fc ? (
-              forecastText(fc).map((line, i) => (
-                <p key={line} class={i ? 'warn' : ''}>
-                  {line}
+              forecastText(fc).map((line) => (
+                <p key={line.text} class={line.warn ? 'warn' : ''}>
+                  {line.text}
                 </p>
               ))
             ) : (
               <p>финиш до {game.deadline}</p>
+            )}
+            {fc && (
+              <button
+                type="button"
+                class={`pause-btn${onPause ? ' on' : ''}`}
+                onClick={() =>
+                  void record(PAUSE_ID, { type: onPause ? 'pause_ended' : 'pause_started' })
+                }
+              >
+                {onPause ? '▶ Закончить паузу' : '☕ Начать паузу'}
+              </button>
             )}
             {screen.name === 'route' && (
               <p class="muted small">

@@ -132,6 +132,7 @@ export function buildProblem(o: {
     }),
   ];
 
+  const pauseS = Math.round((params.pauseMin ?? 0) * 60);
   const order = [START_ID, FINISH_ID, ...kps.map((k) => k.id)].map((id) => index.get(id) ?? 0);
   const mps = params.speedKmh / 3.6;
   const durationS = order.map((i) =>
@@ -146,7 +147,8 @@ export function buildProblem(o: {
     matrix: { source: matrix.source, durationS },
     start: 0,
     finish: 1,
-    deadlineS: clampS(secondsFrom(start, game.finish.deadline)),
+    deadlineS: clampS(secondsFrom(start, game.finish.deadline) - pauseS),
+    ...(pauseS > 0 && { pauseS }),
     softLateMaxS: game.finish.graceMin * 60,
     latePenaltyPerMin: game.finish.penaltyPerMin,
     ...(params.restMin > 0 && { rest: [{ durationS: Math.round(params.restMin * 60) }] }),

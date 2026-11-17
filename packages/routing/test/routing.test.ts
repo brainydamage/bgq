@@ -239,6 +239,19 @@ describe('Problem на 10.10', () => {
     );
   });
 
+  it('резерв на паузу: дедлайн солвера раньше на pauseMin, pauseS в задаче; без него — как было', () => {
+    expect(p.pauseS).toBeUndefined();
+    const q = buildProblem({
+      game,
+      points: t,
+      matrix,
+      params: { ...DEFAULT_PARAMS, pauseMin: 45 },
+    });
+    expect(q.deadlineS).toBe(25_200 - 45 * 60);
+    expect(q.pauseS).toBe(2700);
+    expect(schemaErrors(Problem, q)).toEqual([]);
+  });
+
   it('без пролога (нет start.depart) — от старта; выход раньше старта — ошибка', () => {
     const noPrologue = { ...game, start: { time: '10:30' } };
     const q = buildProblem({ game: noPrologue, points: t, matrix, params: DEFAULT_PARAMS });

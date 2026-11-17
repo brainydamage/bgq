@@ -142,6 +142,10 @@
       "type": "integer",
       "minimum": 0
     },
+    "pauseS": {
+      "type": "integer",
+      "minimum": 0
+    },
     "softLateMaxS": {
       "type": "integer",
       "minimum": 0

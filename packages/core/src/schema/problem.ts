@@ -47,7 +47,10 @@ export const Problem = Type.Object(
     ),
     start: Type.Integer({ minimum: 0 }),
     finish: Type.Integer({ minimum: 0 }),
+    /** Дедлайн для солвера: настоящий минус резерв на паузу (pauseS). */
     deadlineS: Seconds,
+    /** Резерв на паузу, с: настоящий дедлайн = deadlineS + pauseS. Солверы его не знают. */
+    pauseS: Type.Optional(Seconds),
     softLateMaxS: Seconds,
     latePenaltyPerMin: Type.Number({ minimum: 0 }),
     rest: Type.Optional(Type.Array(RestBlock)),

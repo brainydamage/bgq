@@ -75,6 +75,7 @@ export function planSummary(plan: Plan, problem: Problem, kps: Kp[] = []): strin
     late > 0
       ? `опоздание ${num(late)} мин (−${Math.ceil(late) * problem.latePenaltyPerMin} б)`
       : `запас ${num(plan.slackMin)} мин`;
+  const pause = problem.pauseS ? ` + резерв на паузу ${num(problem.pauseS / 60)} мин` : '';
   const windows = new Set(problem.nodes.filter((n) => n.window).map((n) => n.kpId));
   const dropped = [...plan.dropped].sort(
     (a, b) =>
@@ -83,7 +84,7 @@ export function planSummary(plan: Plan, problem: Problem, kps: Kp[] = []): strin
   const droppedPoints = dropped.reduce((s, id) => s + (points.get(id) ?? 0), 0);
   const first = plan.stops[0];
   const lines = [
-    `План: ${plan.stops.length} КП · ${num(plan.totalPoints)} б из ${all} · ${km(plan.distanceM)} · финиш ${clock(plan.t0, plan.finishS)}, ${finish}`,
+    `План: ${plan.stops.length} КП · ${num(plan.totalPoints)} б из ${all} · ${km(plan.distanceM)} · финиш ${clock(plan.t0, plan.finishS)}, ${finish}${pause}`,
   ];
   if (plan.expectedPrize !== plan.totalPoints) {
     lines.push(`  ожидаемо ${num(plan.expectedPrize)} б (с поправкой на неточные координаты)`);

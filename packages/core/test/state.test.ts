@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   type Event,
+  Event as EventSchema,
   type Game,
   orderEvents,
   PhoneGame,
+  pausedBefore,
   phoneGame,
+  projectPauses,
   projectState,
   schemaErrors,
 } from '../src/index.ts';
@@ -114,6 +117,33 @@ describe('projectState: события → состояние', () => {
     expect(state.has('t-x')).toBe(false);
     expect(state.get('64')?.status).toBe('skipped');
     expect(state.get('95')).toMatchObject({ status: 'open', solved: true, answer: 'чесма' });
+  });
+});
+
+describe('паузы: pause_started / pause_ended', () => {
+  const ms = (at: string) => Date.parse(`2026-10-10T${at}+02:00`);
+
+  it('схема: kpId только «pause»; в состоянии КП паузы нет', () => {
+    const start = ev('pause_started', 'pause', '15:00:00');
+    expect(schemaErrors(EventSchema, start)).toEqual([]);
+    expect(schemaErrors(EventSchema, { ...start, kpId: '64' })).not.toEqual([]);
+    expect(projectState([start, ev('pause_ended', 'pause', '15:30:00')], GAME).size).toBe(0);
+  });
+
+  it('закрытые и идущая; двойное «начали» и «закончили» без начала не считаются', () => {
+    const events = [
+      ev('pause_ended', 'pause', '13:00:00'),
+      ev('pause_started', 'pause', '14:00:00'),
+      ev('pause_started', 'pause', '14:01:00'), // второй телефон
+      ev('pause_ended', 'pause', '14:20:00'),
+      ev('pause_started', 'pause', '17:00:00'),
+      { ...ev('pause_ended', 'pause', '17:05:00'), gameId: '2026-01-01' },
+    ];
+    const p = projectPauses(events, GAME);
+    expect(p).toEqual({ closed: [[ms('14:00:00'), ms('14:20:00')]], openSince: ms('17:00:00') });
+    expect(pausedBefore(p, ms('14:10:00'))).toBe(10 * 60_000);
+    expect(pausedBefore(p, ms('16:00:00'))).toBe(20 * 60_000);
+    expect(pausedBefore(p, ms('17:15:00'))).toBe(35 * 60_000);
   });
 });
 

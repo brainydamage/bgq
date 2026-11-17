@@ -231,6 +231,11 @@ function runProblem(gamesDir: string, o: { date?: string }): number {
   console.log(
     `${game.start.depart ? `старт ${game.start.time}, выход после пролога ${depart}` : `выход со старта ${depart}`} · финиш до ${game.finish.deadline} (+${game.finish.graceMin} мин, −${game.finish.penaltyPerMin} б/мин) · скорость ${params.speedKmh} км/ч · на точке ${params.serviceMin.default} мин`,
   );
+  if (problem.pauseS) {
+    console.log(
+      `резерв на паузу ${Math.round(problem.pauseS / 60)} мин → план до ${hhmm(problem.deadlineS)}`,
+    );
+  }
   if (windows.length) console.log(`окна: ${windows.join(', ')}`);
   console.log(`→ ${rel(outPath)}`);
   return 0;

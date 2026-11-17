@@ -1,5 +1,14 @@
 // План маршрута и КП на телефоне: чистая логика (тестируется в Node).
-import { clock, clockIn, type Kp, type KpState, type Loc, type PhoneGame } from '@bgq/core';
+import {
+  clock,
+  clockIn,
+  type Kp,
+  type KpState,
+  type Loc,
+  type Pauses,
+  type PhoneGame,
+  pausedBefore,
+} from '@bgq/core';
 
 /** Сколько следующих точек показывает штурман. */
 export const NEXT_STOPS = 4;
@@ -74,49 +83,122 @@ export function nextStops(plan: readonly KpRow[], n = NEXT_STOPS): KpRow[] {
 }
 
 export interface Forecast {
-  /** Финиш и запас по плану (как посчитал солвер). */
+  /** Финиш по плану (как посчитал солвер) и запас до настоящего дедлайна, мин. */
   planFinish: string;
   planSlackMin: number;
-  /** Отставание от плана сейчас, мин (0 — идём по плану или раньше). */
-  behindMin: number;
-  /** С учётом отставания. */
+  /**
+   * Отклонение от плана, мин: > 0 — отстаём, < 0 — опережаем. Считается только в день игры;
+   * время паузы в него не входит.
+   */
+  deltaMin: number;
+  /** Пауза за игру всего, мин (с идущей). */
+  pausedMin: number;
+  /** Идущая пауза: с какого времени и сколько уже. */
+  pause?: { since: string; min: number };
+  /** Прогноз финиша без новых пауз: план + пауза + отклонение. */
   finish: string;
+  /** Запас до дедлайна по прогнозу = сколько ещё можно на паузу; < 0 — опоздание. */
   slackMin: number;
 }
 
+/** «ЧЧ:ММ» местного времени игры → секунды от t0 плана (t0 — местное время с поясом). */
+function secondsFromT0(t0: string, hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  const t0min = Number(t0.slice(11, 13)) * 60 + Number(t0.slice(14, 16));
+  return ((h ?? 0) * 60 + (m ?? 0) - t0min) * 60;
+}
+
 /**
- * Финиш и запас. Отставание — насколько «сейчас» позже прихода по плану к следующей открытой
- * точке (или к финишу); считается только в день игры. Пропуски время не возвращают: матрицы на
- * телефоне нет, точный ответ даст пересчёт.
+ * Финиш, запас и отклонение от плана.
+ * - Время паузы сдвигает весь план: оно не отставание, а трата резерва (запаса до дедлайна).
+ * - Отклонение — худшее из двух: насколько позже плана отметили «взято» последнюю взятую точку
+ *   плана (время «взято» — когда закончили, сравниваем с уходом по плану; раньше — опережение),
+ *   и насколько «сейчас» позже прихода к следующей открытой точке (или к финишу).
+ * - Запас — до настоящего дедлайна игры: резерв на паузу (план солвер строил на столько раньше),
+ *   плюс запас самого плана, минус пауза, минус отставание (плюс опережение).
+ * Пропуски время не возвращают напрямую: к следующей точке просто приходим раньше.
  */
 export function forecast(
-  game: Pick<PhoneGame, 'date' | 'tz' | 'plan'>,
+  game: Pick<PhoneGame, 'date' | 'tz' | 'plan' | 'deadline'>,
   plan: readonly KpRow[],
   now: Date,
+  pauses: Pauses = { closed: [] },
 ): Forecast | null {
   const p = game.plan;
   if (!p) return null;
-  const planSlackMin = Math.round(p.slackMin);
-  const target = nextStops(plan, 1)[0]?.stop?.arriveS ?? p.finishS;
-  const nowS = (now.getTime() - Date.parse(p.t0)) / 1000;
-  const today = clockIn(game.tz, now).date === game.date;
-  const behindMin = today && nowS > target ? Math.ceil((nowS - target) / 60) : 0;
+  const t0Ms = Date.parse(p.t0);
+  const nowS = (now.getTime() - t0Ms) / 1000;
+  const pausedS = (atS: number) => pausedBefore(pauses, t0Ms + atS * 1000) / 1000;
+  const deadlineS = secondsFromT0(p.t0, game.deadline);
+
+  let deltaS = 0;
+  if (clockIn(game.tz, now).date === game.date) {
+    const target = nextStops(plan, 1)[0]?.stop?.arriveS ?? p.finishS;
+    const late = nowS - (target + pausedS(nowS));
+    let last: number | undefined;
+    let lastTakenS = Number.NEGATIVE_INFINITY;
+    for (const r of plan) {
+      if (r.status !== 'taken' || !r.answerTime || !r.stop) continue;
+      const takenS = secondsFromT0(p.t0, r.answerTime);
+      if (takenS < lastTakenS) continue;
+      lastTakenS = takenS;
+      last = takenS - (r.stop.departS + pausedS(takenS));
+    }
+    deltaS = last === undefined ? Math.max(0, late) : Math.max(last, late);
+  }
+  const deltaMin = Math.round(deltaS / 60);
+  const pausedMin = Math.round(pausedS(nowS) / 60);
+  const finishS = p.finishS + pausedMin * 60 + deltaMin * 60;
   return {
     planFinish: clock(p.t0, p.finishS),
-    planSlackMin,
-    behindMin,
-    finish: clock(p.t0, p.finishS + behindMin * 60),
-    slackMin: planSlackMin - behindMin,
+    planSlackMin: Math.round((deadlineS - p.finishS) / 60),
+    deltaMin,
+    pausedMin,
+    ...(pauses.openSince !== undefined && {
+      pause: {
+        since: clock(p.t0, (pauses.openSince - t0Ms) / 1000),
+        min: Math.max(0, Math.round((now.getTime() - pauses.openSince) / 60_000)),
+      },
+    }),
+    finish: clock(p.t0, finishS),
+    slackMin: Math.round((deadlineS - finishS) / 60),
   };
 }
 
-const slackText = (min: number) => (min >= 0 ? `запас ${min} мин` : `опоздание ${-min} мин`);
+/** Строка прогноза и нужно ли её выделить (плохая новость). */
+export interface ForecastLine {
+  text: string;
+  warn: boolean;
+}
 
-/** «финиш по плану 19:12, запас 18 мин» (+ «отстаём на 7 мин → 19:19, запас 11 мин»). */
-export function forecastText(f: Forecast): string[] {
-  const lines = [`финиш по плану ${f.planFinish}, ${slackText(f.planSlackMin)}`];
-  if (f.behindMin > 0)
-    lines.push(`отстаём на ${f.behindMin} мин → финиш ${f.finish}, ${slackText(f.slackMin)}`);
+/**
+ * Пауза: «☕ пауза с 16:40 · 23 мин». Отклонение: «опережаем на 12 мин» / «отстаём на 8 мин».
+ * Итог: «на паузу ещё 57 мин · ожидаемый финиш 18:07» или «опоздание 6 мин · ожидаемый финиш 19:10».
+ * До старта плана и не в день игры отклонения нет — только финиш по плану и запас.
+ */
+export function forecastText(f: Forecast): ForecastLine[] {
+  const lines: ForecastLine[] = [];
+  if (f.pause)
+    lines.push({ text: `☕ пауза с ${f.pause.since} · ${f.pause.min} мин`, warn: false });
+  if (f.deltaMin > 0) lines.push({ text: `отстаём на ${f.deltaMin} мин`, warn: true });
+  else if (f.deltaMin < 0) lines.push({ text: `опережаем на ${-f.deltaMin} мин`, warn: false });
+  const paused = f.pausedMin > 0 && !f.pause ? ` · пауза была ${f.pausedMin} мин` : '';
+  lines.push(
+    f.slackMin >= 0
+      ? {
+          text: `на паузу ещё ${f.slackMin} мин · ожидаемый финиш ${f.finish}${paused}`,
+          warn: false,
+        }
+      : { text: `опоздание ${-f.slackMin} мин · ожидаемый финиш ${f.finish}${paused}`, warn: true },
+  );
+  if (f.deltaMin === 0 && !f.pausedMin && !f.pause) {
+    const slack =
+      f.planSlackMin >= 0 ? `на паузу ${f.planSlackMin} мин` : `опоздание ${-f.planSlackMin} мин`;
+    lines[lines.length - 1] = {
+      text: `финиш по плану ${f.planFinish}, ${slack}`,
+      warn: f.planSlackMin < 0,
+    };
+  }
   return lines;
 }
 

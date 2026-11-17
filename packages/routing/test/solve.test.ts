@@ -116,6 +116,11 @@ describe('solve: хэш, время, сводка', () => {
     expect(lines[0]).toContain('запас 12,5 мин');
     expect(lines[1]).toBe('  ожидаемо 11,5 б (с поправкой на неточные координаты)');
   });
+
+  it('сводка: резерв на паузу — после запаса', () => {
+    const lines = planSummary({ ...plan, slackMin: 3 }, { ...problem, pauseS: 2700 });
+    expect(lines[0]).toMatch(/запас 3 мин \+ резерв на паузу 45 мин$/);
+  });
 });
 
 /** Контракт с Python: план солвера проходит TS-схему Plan. Нужен uv (brew install uv). */

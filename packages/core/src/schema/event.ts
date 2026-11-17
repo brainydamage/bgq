@@ -68,6 +68,21 @@ export const CopiedEvent = Type.Object(
 /** Снята галочка «переписано». */
 export const UncopiedEvent = Type.Object({ ...base, type: Type.Literal('uncopied') }, opts);
 
+/**
+ * Пауза (обед): начали / закончили. Не про КП — kpId всегда «pause». Время паузы телефон
+ * вычитает из резерва и не считает отставанием от плана. Повторное «начали» без «закончили»
+ * (два телефона нажали почти одновременно) не считается.
+ */
+export const PauseStartedEvent = Type.Object(
+  { ...base, kpId: Type.Literal('pause'), type: Type.Literal('pause_started') },
+  opts,
+);
+
+export const PauseEndedEvent = Type.Object(
+  { ...base, kpId: Type.Literal('pause'), type: Type.Literal('pause_ended') },
+  opts,
+);
+
 export const Event = Type.Union([
   TakenEvent,
   SkippedEvent,
@@ -76,5 +91,7 @@ export const Event = Type.Union([
   ReopenedEvent,
   CopiedEvent,
   UncopiedEvent,
+  PauseStartedEvent,
+  PauseEndedEvent,
 ]);
 export type Event = Static<typeof Event>;

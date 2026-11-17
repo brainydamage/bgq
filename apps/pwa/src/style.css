@@ -390,6 +390,23 @@ h1 {
   margin: 0;
 }
 
+/* Пауза (обед): «☕ Начать паузу» / «▶ Закончить паузу» под прогнозом. */
+.pause-btn {
+  margin-top: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  font-weight: 600;
+}
+
+.pause-btn.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .section {
   margin: 18px 0 0;
   font-size: 15px;

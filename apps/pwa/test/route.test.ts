@@ -1,9 +1,11 @@
 import {
+  clock,
   type Event,
   PhoneGame,
   type Plan,
   phoneGame,
   planMissing,
+  projectPauses,
   projectState,
   schemaErrors,
 } from '@bgq/core';
@@ -136,42 +138,91 @@ describe('штурман: следующие точки', () => {
   });
 });
 
-describe('запас: финиш по плану и отставание', () => {
+describe('прогноз: опережение, отставание, пауза', () => {
   const rows = routeRows(phone, new Map());
-  const firstArrive = (plan.stops[0] as Plan['stops'][number]).arriveS;
+  const [first, second] = plan.stops as [Plan['stops'][number], Plan['stops'][number]];
   const at = (s: number) => new Date(Date.parse(plan.t0) + s * 1000);
+  const hhmm = (s: number) => clock(plan.t0, s);
+  /** «ЧЧ:ММ» → секунды от t0 (12:30). */
+  const sOf = (t: string) => (Number(t.slice(0, 2)) * 60 + Number(t.slice(3)) - 750) * 60;
+  const takenFirst = (time: string) =>
+    routeRows(
+      phone,
+      projectState([ev(first.kpId, { type: 'taken', answerTime: time }, time)], game.id),
+    ).plan;
+  const pauseEv = (type: 'pause_started' | 'pause_ended', s: number) =>
+    makeEvent(game.id, 'pause', { type }, { deviceId: 'iphone', seq: 900 + s }, at(s));
+  type F = NonNullable<ReturnType<typeof forecast>>;
 
-  it('по плану: финиш и запас солвера', () => {
-    const f = forecast(phone, rows.plan, at(0));
-    expect(f).toMatchObject({ behindMin: 0, slackMin: Math.round(plan.slackMin) });
-    expect(forecastText(f as NonNullable<typeof f>)).toEqual([
-      `финиш по плану ${f?.planFinish}, запас ${Math.round(plan.slackMin)} мин`,
+  it('по плану: финиш солвера и запас до настоящего дедлайна', () => {
+    const f = forecast(phone, rows.plan, at(0)) as F;
+    expect(f).toMatchObject({ deltaMin: 0, pausedMin: 0, slackMin: 0, planSlackMin: 0 });
+    expect(forecastText(f)).toEqual([
+      { text: `финиш по плану ${f.planFinish}, на паузу 0 мин`, warn: false },
     ]);
   });
 
   it('позже прихода к следующей точке — отставание сдвигает финиш и съедает запас', () => {
-    const f = forecast(phone, rows.plan, at(firstArrive + 7 * 60 + 10)) as NonNullable<
-      ReturnType<typeof forecast>
-    >;
-    expect(f.behindMin).toBe(8); // минута начатая
-    expect(f.slackMin).toBe(Math.round(plan.slackMin) - 8);
-    expect(forecastText(f)[1]).toMatch(/^отстаём на 8 мин → финиш \d\d:\d\d, опоздание \d+ мин$/);
+    const f = forecast(phone, rows.plan, at(first.arriveS + 7 * 60 + 10)) as F;
+    expect(f.deltaMin).toBe(7);
+    expect(f.slackMin).toBe(-7);
+    expect(f.finish).toBe(hhmm(plan.finishS + 7 * 60));
+    expect(forecastText(f)).toEqual([
+      { text: 'отстаём на 7 мин', warn: true },
+      { text: `опоздание 7 мин · ожидаемый финиш ${f.finish}`, warn: true },
+    ]);
   });
 
-  it('следующая — по статусам: первая взята, сравниваем со второй', () => {
-    const s = projectState(
-      [ev(plan.stops[0]?.kpId ?? '', { type: 'taken', answerTime: '12:40' }, '12:40')],
+  it('«взято» раньше ухода по плану — опережение, запас растёт', () => {
+    const time = hhmm(first.departS - 12 * 60);
+    const lead = Math.round((sOf(time) - first.departS) / 60);
+    const f = forecast(phone, takenFirst(time), at(sOf(time))) as F;
+    expect(lead).toBeLessThanOrEqual(-11);
+    expect(f.deltaMin).toBe(lead);
+    expect(f.slackMin).toBe(-lead);
+    expect(forecastText(f)).toEqual([
+      { text: `опережаем на ${-lead} мин`, warn: false },
+      { text: `на паузу ещё ${-lead} мин · ожидаемый финиш ${f.finish}`, warn: false },
+    ]);
+  });
+
+  it('после «взято» вовремя — сравниваем со следующей точкой', () => {
+    const r = takenFirst(hhmm(first.departS));
+    expect(forecast(phone, r, at(second.arriveS))?.deltaMin).toBe(0);
+    expect(forecast(phone, r, at(second.arriveS + 60))?.deltaMin).toBe(1);
+  });
+
+  it('пауза — не отставание: тратит запас, план сдвигается', () => {
+    const now = first.arriveS + 7 * 60 + 10;
+    const open = projectPauses([pauseEv('pause_started', first.arriveS - 300)], game.id);
+    const f = forecast(phone, rows.plan, at(now), open) as F;
+    expect(f).toMatchObject({ deltaMin: 0, pausedMin: 12, slackMin: -12 });
+    expect(f.pause).toEqual({ since: hhmm(first.arriveS - 300), min: 12 });
+    expect(forecastText(f)[0]).toEqual({
+      text: `☕ пауза с ${hhmm(first.arriveS - 300)} · 12 мин`,
+      warn: false,
+    });
+
+    // Резерв 45 мин (план строился до 18:45, дедлайн 19:30): после паузы на 12 мин — ещё 33.
+    const reserve = { ...phone, deadline: '20:15' };
+    const closed = projectPauses(
+      [pauseEv('pause_started', first.arriveS - 300), pauseEv('pause_ended', now)],
       game.id,
     );
-    const r = routeRows(phone, s);
-    const second = (plan.stops[1] as Plan['stops'][number]).arriveS;
-    expect(forecast(phone, r.plan, at(second))?.behindMin).toBe(0);
-    expect(forecast(phone, r.plan, at(second + 60))?.behindMin).toBe(1);
+    const g = forecast(reserve, rows.plan, at(now + 60), closed) as F;
+    expect(g).toMatchObject({ deltaMin: 0, pausedMin: 12, slackMin: 33, planSlackMin: 45 });
+    expect(g.pause).toBeUndefined();
+    expect(forecastText(g)).toEqual([
+      {
+        text: `на паузу ещё 33 мин · ожидаемый финиш ${g.finish} · пауза была 12 мин`,
+        warn: false,
+      },
+    ]);
   });
 
-  it('не в день игры — без отставания; без плана — null', () => {
-    const f = forecast({ ...phone, date: '2026-10-11' }, rows.plan, at(firstArrive + 3600));
-    expect(f?.behindMin).toBe(0);
+  it('не в день игры — без отклонения; без плана — null', () => {
+    const f = forecast({ ...phone, date: '2026-10-11' }, rows.plan, at(first.arriveS + 3600));
+    expect(f?.deltaMin).toBe(0);
     const { plan: _, ...noPlan } = phone;
     expect(forecast(noPlan, rows.plan, at(0))).toBeNull();
   });
