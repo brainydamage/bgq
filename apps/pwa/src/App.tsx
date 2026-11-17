@@ -2,7 +2,10 @@ import {
   clockIn,
   type Event,
   PhoneGame,
+  type Plan,
+  clock as planClock,
   projectPauses,
+  projectPlan,
   projectState,
   schemaErrors,
 } from '@bgq/core';
@@ -25,10 +28,12 @@ import {
   visibleRows,
 } from './checklist.ts';
 import { appendEvent, loadCurrent, saveGame, syncStore } from './db.ts';
-import { type Body, makeEvent, PAUSE_ID, toggleBody } from './events.ts';
+import { type Body, makeEvent, PAUSE_ID, PLAN_ID, toggleBody } from './events.ts';
 import { KpCard } from './KpCard.tsx';
 import { NavView } from './NavView.tsx';
+import { ReplanPanel } from './ReplanPanel.tsx';
 import { RouteView } from './RouteView.tsx';
+import { effectivePlan } from './replan.ts';
 import { forecast, forecastText, routeRows, takenSummary } from './route.ts';
 import { go, type Screen, useScreen } from './router.ts';
 import { offlineReady, onUpdate } from './sw-client.ts';
@@ -98,6 +103,7 @@ export function App() {
   const [offline, setOffline] = useState(false);
   const [update, setUpdate] = useState<(() => void) | null>(null);
   const [sync, setSync] = useState<SyncStatus | null>(null);
+  const [replanOpen, setReplanOpen] = useState(false);
   const syncer = useRef<Syncer | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const hashScreen = useScreen();
@@ -158,9 +164,14 @@ export function App() {
     [game, events],
   );
   const rows = useMemo(() => (game ? taskRows(game.tasks, state) : []), [game, state]);
+  // План: принятый на телефоне (пересчёт), если он новее плана из phone.json.
+  const eff = useMemo(
+    () => (game ? effectivePlan(game, projectPlan(events, game.gameId)) : null),
+    [game, events],
+  );
   const route = useMemo(
-    () => (game ? routeRows(game, state) : { plan: [], rest: [] }),
-    [game, state],
+    () => (eff ? routeRows(eff.game, state) : { plan: [], rest: [] }),
+    [eff, state],
   );
   const book = useMemo(
     () => (game ? bookRows(game, state) : { kps: [], tasks: [] }),
@@ -175,7 +186,8 @@ export function App() {
     [game, events],
   );
   const onPause = pauses.openSince !== undefined;
-  const fc = game ? forecast(game, route.plan, now, pauses) : null;
+  const fc = eff ? forecast(eff.game, route.plan, now, pauses, eff.accepted?.atMs) : null;
+  const canReplan = Boolean(fc && eff?.game.problem);
   const taken = takenSummary(route);
 
   // Экран: из хэша; по умолчанию — маршрут, если в игре есть КП, иначе задания.
@@ -299,15 +311,26 @@ export function App() {
               <p>финиш до {game.deadline}</p>
             )}
             {fc && (
-              <button
-                type="button"
-                class={`pause-btn${onPause ? ' on' : ''}`}
-                onClick={() =>
-                  void record(PAUSE_ID, { type: onPause ? 'pause_ended' : 'pause_started' })
-                }
-              >
-                {onPause ? '▶ Закончить паузу' : '☕ Начать паузу'}
-              </button>
+              <div class="summary-actions">
+                <button
+                  type="button"
+                  class={`pause-btn${onPause ? ' on' : ''}`}
+                  onClick={() =>
+                    void record(PAUSE_ID, { type: onPause ? 'pause_ended' : 'pause_started' })
+                  }
+                >
+                  {onPause ? '▶ Закончить паузу' : '☕ Начать паузу'}
+                </button>
+                {canReplan && (
+                  <button
+                    type="button"
+                    class={`pause-btn${replanOpen ? ' on' : ''}`}
+                    onClick={() => setReplanOpen(!replanOpen)}
+                  >
+                    ⟳ Пересчитать
+                  </button>
+                )}
+              </div>
             )}
             {screen.name === 'route' && (
               <p class="muted small">
@@ -358,6 +381,29 @@ export function App() {
       )}
       {message && !error && <p class="note-msg">{message}</p>}
 
+      {eff && replanOpen && canReplan && (screen.name === 'route' || screen.name === 'nav') && (
+        <ReplanPanel
+          game={eff.game}
+          rows={route}
+          now={now}
+          pauses={pauses}
+          accepted={eff.accepted}
+          onClose={() => setReplanOpen(false)}
+          onAccept={(plan: Plan, pauseMin: number) => {
+            setReplanOpen(false);
+            const done = new Set(
+              [...route.plan, ...route.rest].filter((r) => r.status !== 'open').map((r) => r.kp.id),
+            );
+            const left = plan.stops.filter((s) => !done.has(s.kpId)).length;
+            void record(PLAN_ID, { type: 'plan_accepted', plan, pauseMin }).then(() =>
+              setMessage(
+                `Новый план: впереди ${left} КП, финиш ${planClock(plan.t0, plan.finishS)}, пауза впереди ${pauseMin} мин`,
+              ),
+            );
+          }}
+        />
+      )}
+
       {reminder && (
         <section class="reminder" role="status">
           <strong>
@@ -405,11 +451,13 @@ export function App() {
           onToggle={(r: BookRow) => record(r.id, copyBody(r))}
         />
       )}
-      {game && screen.name === 'route' && <RouteView rows={route} hasPlan={Boolean(game.plan)} />}
+      {game && screen.name === 'route' && (
+        <RouteView rows={route} hasPlan={Boolean(eff?.game.plan)} />
+      )}
       {game && screen.name === 'nav' && (
         <NavView
           plan={route.plan}
-          hasPlan={Boolean(game.plan)}
+          hasPlan={Boolean(eff?.game.plan)}
           finish={game.finish}
           onSkip={(kpId) => record(kpId, { type: 'skipped' })}
           onReopen={(kpId) => record(kpId, { type: 'reopened' })}

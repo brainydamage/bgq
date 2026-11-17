@@ -109,7 +109,7 @@ export interface Forecast {
 }
 
 /** «ЧЧ:ММ» местного времени игры → секунды от t0 плана (t0 — местное время с поясом). */
-function secondsFromT0(t0: string, hhmm: string): number {
+export function secondsFromT0(t0: string, hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
   const t0min = Number(t0.slice(11, 13)) * 60 + Number(t0.slice(14, 16));
   return ((h ?? 0) * 60 + (m ?? 0) - t0min) * 60;
@@ -161,12 +161,18 @@ export function forecast(
   plan: readonly KpRow[],
   now: Date,
   pauses: Pauses = { closed: [] },
+  /**
+   * План принят на телефоне в этот момент (мс): его времена уже включают паузы до него, поэтому
+   * в отклонении и сдвиге считаются только паузы после.
+   */
+  planAtMs?: number,
 ): Forecast | null {
   const p = game.plan;
   if (!p) return null;
   const t0Ms = Date.parse(p.t0);
   const nowS = (now.getTime() - t0Ms) / 1000;
-  const pausedS = (atS: number) => pausedBefore(pauses, t0Ms + atS * 1000) / 1000;
+  const base = planAtMs === undefined ? 0 : pausedBefore(pauses, planAtMs);
+  const pausedS = (atS: number) => (pausedBefore(pauses, t0Ms + atS * 1000) - base) / 1000;
   const deadlineS = secondsFromT0(p.t0, game.deadline);
 
   let deltaS = 0;
@@ -187,8 +193,8 @@ export function forecast(
     if (game.problem) forwardS = forwardFinishS(game.problem, p, plan, nowS, pausedS);
   }
   const deltaMin = Math.round(deltaS / 60) + 0; // + 0: без «-0»
-  const pausedMin = Math.round(pausedS(nowS) / 60);
-  const finishS = forwardS ?? p.finishS + pausedMin * 60 + deltaMin * 60;
+  const pausedMin = Math.round(pausedBefore(pauses, now.getTime()) / 60_000);
+  const finishS = forwardS ?? p.finishS + Math.round(pausedS(nowS)) + deltaMin * 60;
   return {
     planFinish: clock(p.t0, p.finishS),
     planSlackMin: Math.round((deadlineS - p.finishS) / 60),

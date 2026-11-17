@@ -206,6 +206,9 @@ importers:
       '@bgq/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@bgq/replan':
+        specifier: workspace:*
+        version: link:../../packages/replan
       preact:
         specifier: 10.29.8
         version: 10.29.8

@@ -692,3 +692,78 @@ h1 {
   color: var(--error);
   font-weight: 700;
 }
+
+/* Кнопки под прогнозом: пауза и пересчёт в ряд. */
+.summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Пересчёт маршрута: пауза впереди, «было → стало», «Принять». */
+.replan {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--accent);
+}
+
+.replan p {
+  margin: 6px 0;
+}
+
+.replan-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.replan .link {
+  border: 0;
+  background: none;
+  color: var(--accent);
+  padding: 4px 0;
+}
+
+.chips button {
+  min-height: 36px;
+}
+
+.replan-cmp {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.replan-side {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--bg);
+  font-size: 15px;
+}
+
+.replan-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.replan-actions button {
+  flex: 1;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  font-weight: 600;
+}
+
+.replan-actions .primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}

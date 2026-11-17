@@ -1,7 +1,8 @@
 // События телефона: «сделано»/«взято» = taken, отмена = reopened, заметка/ответ и правка времени =
 // answer_changed, «пропустить» (штурман) = skipped, галочка книжки = copied (снимок) / uncopied,
-// пауза (обед) = pause_started / pause_ended с kpId «pause».
-import type { Event } from '@bgq/core';
+// пауза (обед) = pause_started / pause_ended с kpId «pause», пересчёт маршрута = plan_accepted
+// с kpId «plan».
+import type { Event, Plan } from '@bgq/core';
 
 export type Body =
   | { type: 'taken'; answerTime: string }
@@ -11,10 +12,13 @@ export type Body =
   | { type: 'copied'; answer?: string; answerTime?: string }
   | { type: 'uncopied' }
   | { type: 'pause_started' }
-  | { type: 'pause_ended' };
+  | { type: 'pause_ended' }
+  | { type: 'plan_accepted'; plan: Plan; pauseMin: number };
 
 /** kpId событий паузы. */
 export const PAUSE_ID = 'pause';
+/** kpId события «принят пересчитанный план». */
+export const PLAN_ID = 'plan';
 
 /** UUID v4; crypto.randomUUID нет вне защищённого контекста (http по LAN). */
 export function uuid(): string {

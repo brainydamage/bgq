@@ -8,6 +8,7 @@ import {
   pausedBefore,
   phoneGame,
   projectPauses,
+  projectPlan,
   projectState,
   schemaErrors,
 } from '../src/index.ts';
@@ -144,6 +145,48 @@ describe('паузы: pause_started / pause_ended', () => {
     expect(pausedBefore(p, ms('14:10:00'))).toBe(10 * 60_000);
     expect(pausedBefore(p, ms('16:00:00'))).toBe(20 * 60_000);
     expect(pausedBefore(p, ms('17:15:00'))).toBe(35 * 60_000);
+  });
+});
+
+describe('принятый план: plan_accepted', () => {
+  const plan = {
+    v: 1 as const,
+    planId: '00000000-0000-4000-8000-0000000000aa',
+    gameId: GAME,
+    problemHash: 'sha256:x',
+    createdAt: '2026-10-10T13:00:00.000Z',
+    solver: 'heuristic' as const,
+    solverMs: 800,
+    t0: '2026-10-10T12:30:00+02:00',
+    stops: [{ kpId: '64', arriveS: 600, departS: 900 }],
+    finishS: 1800,
+    slackMin: 30,
+    totalPoints: 6,
+    expectedPrize: 6,
+    distanceM: 900,
+    dropped: [],
+  };
+
+  it('схема: kpId только «plan», план по схеме Plan; в состоянии КП его нет', () => {
+    const e = ev('plan_accepted', 'plan', '15:00:00', { plan, pauseMin: 30 });
+    expect(schemaErrors(EventSchema, e)).toEqual([]);
+    expect(schemaErrors(EventSchema, { ...e, kpId: '64' })).not.toEqual([]);
+    expect(schemaErrors(EventSchema, { ...e, plan: { ...plan, stops: 'нет' } })).not.toEqual([]);
+    expect(projectState([e], GAME).size).toBe(0);
+  });
+
+  it('действует последний принятый план этой игры', () => {
+    const first = ev('plan_accepted', 'plan', '15:00:00', { plan, pauseMin: 30 });
+    const second = ev('plan_accepted', 'plan', '16:00:00', {
+      plan: { ...plan, planId: '00000000-0000-4000-8000-0000000000bb' },
+      pauseMin: 15,
+    });
+    const other = { ...second, id: '00000000-0000-4000-8000-0000000000cc', gameId: 'другая' };
+    const got = projectPlan([second, first, other], GAME);
+    expect(got?.plan.planId).toBe('00000000-0000-4000-8000-0000000000bb');
+    expect(got?.pauseMin).toBe(15);
+    expect(got?.atMs).toBe(Date.parse('2026-10-10T16:00:00+02:00'));
+    expect(projectPlan([], GAME)).toBeUndefined();
   });
 });
 

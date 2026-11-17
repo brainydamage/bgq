@@ -1,5 +1,6 @@
 import type { Loc } from './schema/common.ts';
 import type { Event } from './schema/event.ts';
+import type { Plan } from './schema/plan.ts';
 
 /** Состояние КП (или задания без места), вычисленное из событий. В `Kp` статуса нет. */
 export interface KpState {
@@ -40,7 +41,8 @@ export function projectState(events: readonly Event[], gameId: string): Map<stri
   const state = new Map<string, KpState>();
   for (const e of orderEvents(events)) {
     if (e.gameId !== gameId) continue;
-    if (e.type === 'pause_started' || e.type === 'pause_ended') continue;
+    if (e.type === 'pause_started' || e.type === 'pause_ended' || e.type === 'plan_accepted')
+      continue;
     const s = state.get(e.kpId) ?? { kpId: e.kpId, status: 'open', solved: false, updatedAt: '' };
     s.updatedAt = e.clientTs;
     switch (e.type) {
@@ -108,4 +110,21 @@ export function pausedBefore(p: Pauses, untilMs: number): number {
   for (const [a, b] of p.closed) ms += Math.max(0, Math.min(b, untilMs) - a);
   if (p.openSince !== undefined) ms += Math.max(0, untilMs - p.openSince);
   return ms;
+}
+
+/** Принятый на телефоне план: сам план, когда приняли (мс) и сколько паузы он оставил впереди. */
+export interface AcceptedPlan {
+  plan: Plan;
+  atMs: number;
+  pauseMin: number;
+}
+
+/** Последний принятый план игры (по порядку событий); нет — undefined. */
+export function projectPlan(events: readonly Event[], gameId: string): AcceptedPlan | undefined {
+  let last: AcceptedPlan | undefined;
+  for (const e of orderEvents(events)) {
+    if (e.gameId === gameId && e.type === 'plan_accepted')
+      last = { plan: e.plan, atMs: Date.parse(e.clientTs), pauseMin: e.pauseMin };
+  }
+  return last;
 }

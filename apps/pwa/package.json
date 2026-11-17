@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@bgq/core": "workspace:*",
+    "@bgq/replan": "workspace:*",
     "preact": "10.29.8"
   },
   "devDependencies": {

@@ -1,5 +1,6 @@
 import Type, { type Static } from 'typebox';
 import { HHMM, IsoDateTime, KpId, Loc, Uuid } from './common.ts';
+import { Plan } from './plan.ts';
 
 /**
  * Общие поля события. Порядок — по (clientTs, deviceId, seq): часы двух телефонов
@@ -83,6 +84,22 @@ export const PauseEndedEvent = Type.Object(
   opts,
 );
 
+/**
+ * Принят пересчитанный на телефоне план (kpId всегда «plan»): взятые и пропущенные КП — в начале,
+ * дальше новый порядок. pauseMin — сколько минут паузы план оставил впереди (выбрали при пересчёте).
+ * Последний принятый план игры действует, пока с ноутбука не придёт план новее.
+ */
+export const PlanAcceptedEvent = Type.Object(
+  {
+    ...base,
+    kpId: Type.Literal('plan'),
+    type: Type.Literal('plan_accepted'),
+    plan: Plan,
+    pauseMin: Type.Number({ minimum: 0 }),
+  },
+  opts,
+);
+
 export const Event = Type.Union([
   TakenEvent,
   SkippedEvent,
@@ -93,5 +110,6 @@ export const Event = Type.Union([
   UncopiedEvent,
   PauseStartedEvent,
   PauseEndedEvent,
+  PlanAcceptedEvent,
 ]);
 export type Event = Static<typeof Event>;
