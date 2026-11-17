@@ -10,6 +10,7 @@ import {
   schemaErrors,
 } from '@bgq/core';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { answerHistory } from './answers.ts';
 import { BookView } from './BookView.tsx';
 import {
   type BookRow,
@@ -43,6 +44,7 @@ import {
   mergeEvents,
   type Syncer,
   type SyncStatus,
+  stuckText,
   syncText,
 } from './sync.ts';
 import { TasksView } from './TasksView.tsx';
@@ -181,6 +183,7 @@ export function App() {
   const summary = summarize(rows);
   const clock = game ? clockIn(game.tz, now) : null;
   const reminder = game && clock ? finishReminder(rows, game, clock) : null;
+  const stuck = game ? stuckText(sync, now, game.tz) : null;
   const pauses = useMemo(
     () => (game ? projectPauses(events, game.gameId) : { closed: [] }),
     [game, events],
@@ -284,6 +287,11 @@ export function App() {
         <button type="button" class="update" onClick={update}>
           Есть новая версия — обновить
         </button>
+      )}
+      {game && stuck && (
+        <p class="stuck" role="alert">
+          {stuck}
+        </p>
       )}
       <header class="top">
         <div class="title">
@@ -470,6 +478,7 @@ export function App() {
         <KpCard
           key={kpRow.kp.id}
           row={kpRow}
+          history={answerHistory(events, game.gameId, kpRow.kp.id, kpRow.answer, game.tz)}
           onTaken={() => record(kpRow.kp.id, { type: 'taken', answerTime: nowHhmm() })}
           onReopen={() => record(kpRow.kp.id, { type: 'reopened' })}
           onSkip={() => record(kpRow.kp.id, { type: 'skipped' })}

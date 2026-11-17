@@ -1,4 +1,5 @@
 // Карточка КП (секретарь): текст задания, ответ (сохраняется при вводе), «взято» со временем.
+import type { AnswerVersion } from './answers.ts';
 import { useAutosave } from './autosave.ts';
 import { geoUri, type KpRow, kpLabel } from './route.ts';
 import { TimeField } from './TasksView.tsx';
@@ -17,6 +18,8 @@ const ANSWER: Record<string, string> = {
 
 export function KpCard(props: {
   row: KpRow;
+  /** Прошлые варианты ответа (новые сверху). */
+  history: AnswerVersion[];
   onTaken: () => void;
   onReopen: () => void;
   onSkip: () => void;
@@ -82,6 +85,29 @@ export function KpCard(props: {
           onBlur={answer.flush}
         />
       </label>
+      {props.history.length > 0 && (
+        <details class="history">
+          <summary class="muted small">Прошлые варианты ответа · {props.history.length}</summary>
+          <ul>
+            {props.history.map((v) => (
+              <li key={v.answer}>
+                <span class="muted small">{v.at}</span>
+                <span class="history-text">{v.answer}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Текущий ответ не теряется: он сам станет прошлым вариантом.
+                    answer.onInput(v.answer);
+                    answer.flush();
+                  }}
+                >
+                  Вернуть
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       {r.status === 'open' && (
         <div class="actions">

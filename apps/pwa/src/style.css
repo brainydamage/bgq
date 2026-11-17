@@ -576,6 +576,35 @@ h1 {
   color: var(--muted);
 }
 
+.history ul {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.history li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+
+.history-text {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.stuck {
+  display: block;
+  margin-top: max(8px, env(safe-area-inset-top));
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--warn);
+  color: #fff;
+  font-weight: 600;
+}
+
 .actions {
   display: flex;
   gap: 8px;

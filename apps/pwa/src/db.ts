@@ -141,6 +141,25 @@ export const syncStore: SyncStore = {
       n.onsuccess = () => set(n.result);
     });
   },
+  oldestPending(gameId) {
+    return run<string | undefined>(['outbox', 'events'], 'readonly', (tx, set) => {
+      const keys = tx.objectStore('outbox').index('gameId').getAllKeys(gameId);
+      keys.onsuccess = () => {
+        const ids = keys.result as string[];
+        let left = ids.length;
+        let oldest: string | undefined;
+        if (!left) return set(undefined);
+        for (const id of ids) {
+          const got = tx.objectStore('events').get(id);
+          got.onsuccess = () => {
+            const ts = (got.result as Event | undefined)?.clientTs;
+            if (ts && (!oldest || Date.parse(ts) < Date.parse(oldest))) oldest = ts;
+            if (--left === 0) set(oldest);
+          };
+        }
+      };
+    });
+  },
   markSent(ids) {
     return run<void>(['outbox'], 'readwrite', (tx, set) => {
       for (const id of ids) tx.objectStore('outbox').delete(id);

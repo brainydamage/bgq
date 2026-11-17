@@ -16,6 +16,8 @@ export interface SyncStore {
   /** Неотправленные события игры, кроме `skip`, не больше `limit`. */
   pending(gameId: string, limit: number, skip: ReadonlySet<string>): Promise<Event[]>;
   pendingCount(gameId: string): Promise<number>;
+  /** clientTs самого старого неотправленного события игры; очередь пуста — undefined. */
+  oldestPending(gameId: string): Promise<string | undefined>;
   /** Убрать из очереди (сервер принял). */
   markSent(ids: string[]): Promise<void>;
   /** Сохранить события с сервера (свои и чужие), не ставя в очередь. */
@@ -142,6 +144,8 @@ export interface SyncStatus {
   skewMs?: number;
   /** Сколько событий сервер не принял (остаются в очереди). */
   rejected: number;
+  /** clientTs самого старого события в очереди: с какого времени отметки только на этом телефоне. */
+  pendingSince?: string;
   error?: string;
 }
 
@@ -196,6 +200,12 @@ export function createSyncer(deps: {
     }, ms);
   };
 
+  /** Очередь: сколько и с какого времени. */
+  const queue = async (): Promise<Pick<SyncStatus, 'pending' | 'pendingSince'>> => ({
+    pending: await deps.store.pendingCount(deps.gameId),
+    pendingSince: await deps.store.oldestPending(deps.gameId),
+  });
+
   // Замер расхождения часов: серверное время против середины запроса.
   const send: Send = async (req) => {
     const t0 = now();
@@ -214,7 +224,7 @@ export function createSyncer(deps: {
     running = true;
     let ok = false;
     try {
-      emit({ state: 'syncing', pending: await deps.store.pendingCount(deps.gameId) });
+      emit({ state: 'syncing', ...(await queue()) });
       const res = await syncOnce(deps.gameId, deps.store, send, rejected);
       rejected = new Set(res.rejected);
       if (res.received.length && !stopped) deps.onEvents(res.received);
@@ -222,7 +232,7 @@ export function createSyncer(deps: {
       ok = true;
       emit({
         state: 'idle',
-        pending: await deps.store.pendingCount(deps.gameId),
+        ...(await queue()),
         lastOk: new Date(now()),
         rejected: rejected.size,
         error: undefined,
@@ -232,7 +242,10 @@ export function createSyncer(deps: {
       const code = e instanceof SyncError ? e.status : 0;
       emit({
         state: code === 401 || code === 403 ? 'denied' : 'offline',
-        pending: await deps.store.pendingCount(deps.gameId).catch(() => status.pending),
+        ...(await queue().catch(() => ({
+          pending: status.pending,
+          pendingSince: status.pendingSince,
+        }))),
         error: (e as Error).message,
       });
     } finally {
@@ -274,6 +287,29 @@ export function mergeEvents(prev: Event[], incoming: readonly Event[]): Event[] 
     add.push(e);
   }
   return add.length ? [...prev, ...add] : prev;
+}
+
+/** Отметки дольше этого в очереди — предупреждение наверху экрана. */
+export const STUCK_MS = 10 * 60_000;
+
+function marks(n: number): string {
+  const d = n % 10;
+  const h = n % 100;
+  if (d === 1 && h !== 11) return `${n} отметка`;
+  if (d >= 2 && d <= 4 && (h < 12 || h > 14)) return `${n} отметки`;
+  return `${n} отметок`;
+}
+
+/**
+ * Предупреждение: отметки (ответы, «взято») дольше STUCK_MS не ушли на сервер — они только на этом
+ * телефоне, и потерять его — потерять их. null — всё в порядке.
+ */
+export function stuckText(s: SyncStatus | null, now: Date, tz: string): string | null {
+  if (!s?.pending || !s.pendingSince) return null;
+  const since = new Date(s.pendingSince);
+  if (now.getTime() - since.getTime() < STUCK_MS) return null;
+  const fix = s.state === 'denied' ? 'сервер не принимает код — обновите phone.json' : 'нужна сеть';
+  return `⚠ ${marks(s.pending)} только на этом телефоне с ${clockIn(tz, since).hhmm} — ${fix}`;
 }
 
 /** Строка для подвала. null — в phone.json нет адреса синхронизации. */

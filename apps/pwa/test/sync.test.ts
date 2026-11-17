@@ -9,9 +9,11 @@ import {
   PERIOD_MS,
   parseResponse,
   type Send,
+  STUCK_MS,
   SyncError,
   type SyncStatus,
   type SyncStore,
+  stuckText,
   syncOnce,
   syncText,
   type Timer,
@@ -54,6 +56,14 @@ function phone(deviceId: string) {
     },
     async pendingCount() {
       return outbox.size;
+    },
+    async oldestPending(gameId) {
+      const ts = [...outbox]
+        .map((id) => events.get(id) as Event)
+        .filter((e) => e.gameId === gameId)
+        .map((e) => e.clientTs)
+        .sort((a, b) => Date.parse(a) - Date.parse(b));
+      return ts[0];
     },
     async markSent(ids) {
       for (const id of ids) outbox.delete(id);
@@ -289,6 +299,8 @@ describe('createSyncer', () => {
     s.kick();
     await flush();
     expect(last()).toMatchObject({ state: 'offline', pending: 1 });
+    // С какого времени отметка только на этом телефоне — clientTs самой старой в очереди.
+    expect(last()?.pendingSince).toBe(new Date(`${GAME}T12:41:00+02:00`).toISOString());
     expect(t.delays()).toEqual([2000]);
     t.fire();
     await flush();
@@ -370,5 +382,29 @@ describe('syncText', () => {
     ],
   ])('%s', (_name, status, text) => {
     expect(syncText(status, TZ)).toBe(text);
+  });
+});
+
+describe('stuckText', () => {
+  const since = '2026-10-10T12:41:00.000Z'; // 14:41 в Белграде
+  const at = (min: number) => new Date(Date.parse(since) + min * 60_000);
+  const offline: SyncStatus = { state: 'offline', pending: 3, rejected: 0, pendingSince: since };
+
+  it('меньше 10 мин в очереди или очередь пуста — молчим', () => {
+    expect(stuckText(offline, at(STUCK_MS / 60_000 - 1), TZ)).toBeNull();
+    expect(stuckText({ ...offline, pending: 0 }, at(60), TZ)).toBeNull();
+    expect(stuckText(null, at(60), TZ)).toBeNull();
+  });
+
+  it('10 мин и дольше — сколько отметок, с какого времени и что делать', () => {
+    expect(stuckText(offline, at(10), TZ)).toBe(
+      '⚠ 3 отметки только на этом телефоне с 14:41 — нужна сеть',
+    );
+    expect(stuckText({ ...offline, pending: 1 }, at(30), TZ)).toMatch(/^⚠ 1 отметка /);
+    expect(stuckText({ ...offline, pending: 11 }, at(30), TZ)).toMatch(/^⚠ 11 отметок /);
+    expect(stuckText({ ...offline, pending: 22 }, at(30), TZ)).toMatch(/^⚠ 22 отметки /);
+    expect(stuckText({ ...offline, state: 'denied' }, at(30), TZ)).toMatch(
+      /сервер не принимает код — обновите phone\.json$/,
+    );
   });
 });
