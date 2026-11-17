@@ -59,7 +59,8 @@ function BookItem(props: { row: BookRow; onToggle: () => void }) {
       >
         <span class="line">
           {r.kp ? <span class="id">{r.id}</span> : <span class="name">{name}</span>}
-          <span class="pts">{r.task ? pointsLabel(r.task) : `${r.points} б`}</span>
+          {/* Баллы КП видны по номеру; у заданий без номера — нет. */}
+          {r.task && <span class="pts">{pointsLabel(r.task)}</span>}
           <span class="spacer" />
           <span class={r.answerTime ? 'book-time' : 'book-time missing'}>
             {r.answerTime ?? '—:—'}

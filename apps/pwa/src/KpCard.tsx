@@ -31,7 +31,6 @@ export function KpCard(props: {
     <article class={`card ${r.status}`}>
       <div class="card-head">
         <span class="big">{kp.id}</span>
-        <span class="pts">{kp.points} б</span>
         {KIND[kp.kind] && <span class="muted">{KIND[kp.kind]}</span>}
         {ANSWER[kp.answerKind] && <span class="muted">{ANSWER[kp.answerKind]}</span>}
       </div>

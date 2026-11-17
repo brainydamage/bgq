@@ -27,7 +27,6 @@ export function NavView(props: {
             <button type="button" class="stop-head" onClick={() => go({ name: 'kp', id: r.kp.id })}>
               <span class="line">
                 <span class="id">{r.kp.id}</span>
-                <span class="pts">{r.kp.points} б</span>
                 {r.kp.kind === 'riddle' && <span>🧩</span>}
                 <span class="spacer" />
                 <span class="muted">{r.stop?.arrive}</span>
@@ -75,9 +74,7 @@ export function NavView(props: {
           <ul class="skipped">
             {skipped.map((r) => (
               <li key={r.kp.id}>
-                <span>
-                  {r.kp.id} · {r.kp.points} б
-                </span>
+                <span>{r.kp.id}</span>
                 <button type="button" onClick={() => props.onReopen(r.kp.id)}>
                   Вернуть
                 </button>

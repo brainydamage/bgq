@@ -50,7 +50,6 @@ function KpItem({ row: r }: { row: KpRow }) {
         <span class="body">
           <span class="line">
             <span class="id">{r.kp.id}</span>
-            <span class="pts">{r.kp.points} б</span>
             {r.kp.kind === 'riddle' && <span>🧩</span>}
             {r.kp.window && (
               <span class="flag">
