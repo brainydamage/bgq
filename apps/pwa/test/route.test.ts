@@ -15,6 +15,7 @@ import {
   collapseDone,
   forecast,
   forecastText,
+  forecastTone,
   geoUri,
   nextStops,
   routeRows,
@@ -162,7 +163,8 @@ describe('прогноз: опережение, отставание, пауза
     const f = forecast(phone, rows.plan, at(0)) as F;
     expect(f).toMatchObject({ deltaMin: 0, pausedMin: 0, slackMin: 0, planSlackMin: 0 });
     expect(forecastText(f)).toEqual([
-      { text: `Финиш ≈ ${f.planFinish} · запас 0 мин`, warn: false, kind: 'main' },
+      { text: `Финиш ≈ ${f.planFinish}`, kind: 'main', tone: 'plan' },
+      { text: `ровно к ${phone.deadline}`, kind: 'detail' },
     ]);
   });
 
@@ -172,8 +174,8 @@ describe('прогноз: опережение, отставание, пауза
     expect(f.slackMin).toBe(-7);
     expect(f.finish).toBe(hhmm(plan.finishS + 7 * 60));
     expect(forecastText(f)).toEqual([
-      { text: `Финиш ≈ ${f.finish} · на 7 мин позже дедлайна`, warn: true, kind: 'main' },
-      { text: 'отстаём от плана на 7 мин · нажмите ⟳ Пересчитать', warn: false, kind: 'detail' },
+      { text: `Финиш ≈ ${f.finish}`, kind: 'main', tone: 'late' },
+      { text: `на 7 мин позже ${phone.deadline}`, kind: 'detail' },
     ]);
   });
 
@@ -188,8 +190,8 @@ describe('прогноз: опережение, отставание, пауза
     expect(slack).toBeGreaterThanOrEqual(-lead);
     expect(f.slackMin).toBe(slack);
     expect(forecastText(f)).toEqual([
-      { text: `Финиш ≈ ${f.finish} · запас ${slack} мин`, warn: false, kind: 'main' },
-      { text: `опережаем план на ${-lead} мин`, warn: false, kind: 'detail' },
+      { text: `Финиш ≈ ${f.finish}`, kind: 'main', tone: 'ahead' },
+      { text: `запас ${slack} мин до ${phone.deadline}`, kind: 'detail' },
     ]);
   });
 
@@ -207,11 +209,12 @@ describe('прогноз: опережение, отставание, пауза
     expect(f.pause).toEqual({ since: hhmm(first.arriveS - 300), min: 12 });
     expect(forecastText(f)[0]).toEqual({
       text: `☕ пауза с ${hhmm(first.arriveS - 300)} · 12 мин`,
-      warn: false,
       kind: 'pause',
     });
-    // Идущая пауза — без «нажмите ⟳ Пересчитать»: сначала закончить.
-    expect(forecastText(f).map((l) => l.kind)).toEqual(['pause', 'main']);
+    expect(forecastText(f).slice(1)).toEqual([
+      { text: `Финиш ≈ ${f.finish}`, kind: 'main', tone: 'very-late' },
+      { text: `на 12 мин позже ${phone.deadline}`, kind: 'detail' },
+    ]);
 
     // Резерв 45 мин (план строился до 18:45, дедлайн 19:30): после паузы на 12 мин — ещё 33.
     const reserve = { ...phone, deadline: '20:15' };
@@ -223,8 +226,8 @@ describe('прогноз: опережение, отставание, пауза
     expect(g).toMatchObject({ deltaMin: 0, pausedMin: 12, slackMin: 33, planSlackMin: 45 });
     expect(g.pause).toBeUndefined();
     expect(forecastText(g)).toEqual([
-      { text: `Финиш ≈ ${g.finish} · запас 33 мин`, warn: false, kind: 'main' },
-      { text: 'отдыхали 12 мин', warn: false, kind: 'detail' },
+      { text: `Финиш ≈ ${g.finish}`, kind: 'main', tone: 'ahead' },
+      { text: 'запас 33 мин до 20:15', kind: 'detail' },
     ]);
   });
 
@@ -317,5 +320,20 @@ describe('пройденные КП свёрнуты', () => {
   it('ничего не взято — сворачивать нечего', () => {
     const rows = routeRows(phone, projectState([], game.id)).plan;
     expect(collapseDone(rows)).toEqual({ hidden: [], shown: rows });
+  });
+});
+
+describe('цвет финиша по запасу', () => {
+  it('зелёный — запас больше 5; серый — ±5; красный — опоздание больше 5; бордовый — больше 10', () => {
+    expect([40, 6, 5, 0, -5, -6, -10, -11].map(forecastTone)).toEqual([
+      'ahead',
+      'ahead',
+      'plan',
+      'plan',
+      'plan',
+      'late',
+      'late',
+      'very-late',
+    ]);
   });
 });

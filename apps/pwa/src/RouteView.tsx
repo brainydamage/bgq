@@ -51,6 +51,15 @@ export function RouteView(props: { rows: RouteRows; hasPlan: boolean }) {
   );
 }
 
+/** Приход по текущему плану (на момент расчёта или пересчёта): курсивом и бледнее — не прогноз. */
+export function PlanTime(props: { hhmm: string }) {
+  return (
+    <span class="plan-time" title="приход по плану">
+      {props.hhmm}
+    </span>
+  );
+}
+
 /** Значок статуса: ✓ взят, ⏭ пропущен, 🧩 загадка без отгадки. */
 export function statusMark(r: KpRow): string {
   if (r.status === 'taken') return '✓';
@@ -75,7 +84,7 @@ function KpItem({ row: r }: { row: KpRow }) {
             <span class="spacer" />
             {r.status === 'taken' && <span class="time">✓ {r.answerTime ?? 'без времени'}</span>}
             {r.status === 'skipped' && <span class="muted">⏭ пропущен</span>}
-            {r.status === 'open' && r.stop && <span class="muted">{r.stop.arrive}</span>}
+            {r.status === 'open' && r.stop && <PlanTime hhmm={r.stop.arrive} />}
             {r.status === 'open' && !r.stop && statusMark(r) && <span>{statusMark(r)}</span>}
           </span>
           <span class="title-line">{r.kp.title}</span>

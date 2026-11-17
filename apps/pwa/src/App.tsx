@@ -301,11 +301,14 @@ export function App() {
             </button>
           )}
           <h1>{title}</h1>
-          {game && screen.name !== 'kp' && (
-            <span class="muted">
-              {game.city} · {game.date} · финиш {game.deadline}
-            </span>
-          )}
+          {/* В игре на «Маршруте» и «Штурмане» город и дату не показываем: дедлайн — в прогнозе. */}
+          {game &&
+            screen.name !== 'kp' &&
+            !(fc && (screen.name === 'route' || screen.name === 'nav')) && (
+              <span class="muted">
+                {game.city} · {game.date} · финиш {game.deadline}
+              </span>
+            )}
         </div>
         {game && (screen.name === 'route' || screen.name === 'nav') && (
           <div class="summary">
@@ -313,7 +316,7 @@ export function App() {
               forecastText(fc).map((line) => (
                 <p
                   key={line.text}
-                  class={`fc-${line.kind}${line.warn ? ' warn' : ''}${line.kind === 'detail' ? ' muted small' : ''}`}
+                  class={`fc-${line.kind}${line.tone ? ` fc-${line.tone}` : ''}${line.kind === 'detail' ? ' muted small' : ''}`}
                 >
                   {line.text}
                 </p>

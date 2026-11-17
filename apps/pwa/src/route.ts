@@ -86,6 +86,8 @@ export function nextStops(plan: readonly KpRow[], n = NEXT_STOPS): KpRow[] {
 }
 
 export interface Forecast {
+  /** Дедлайн игры «ЧЧ:ММ». */
+  deadline: string;
   /** Финиш по плану (как посчитал солвер) и запас до настоящего дедлайна, мин. */
   planFinish: string;
   planSlackMin: number;
@@ -196,6 +198,7 @@ export function forecast(
   const pausedMin = Math.round(pausedBefore(pauses, now.getTime()) / 60_000);
   const finishS = forwardS ?? p.finishS + Math.round(pausedS(nowS)) + deltaMin * 60;
   return {
+    deadline: game.deadline,
     planFinish: clock(p.t0, p.finishS),
     planSlackMin: Math.round((deadlineS - p.finishS) / 60),
     deltaMin,
@@ -212,42 +215,50 @@ export function forecast(
   };
 }
 
-/** Строка прогноза и нужно ли её выделить (плохая новость). */
+/**
+ * Цвет финиша по запасу: ahead — запас больше 5 мин (зелёный), plan — ±5 мин, идём по плану
+ * (серый), late — опаздываем больше чем на 5 мин (красный), very-late — больше чем на 10 (бордовый).
+ */
+export type ForecastTone = 'ahead' | 'plan' | 'late' | 'very-late';
+
+export function forecastTone(slackMin: number): ForecastTone {
+  if (slackMin > 5) return 'ahead';
+  if (slackMin >= -5) return 'plan';
+  if (slackMin >= -10) return 'late';
+  return 'very-late';
+}
+
+/** Строка прогноза. */
 export interface ForecastLine {
   text: string;
-  warn: boolean;
-  /** pause — идущая пауза, main — главная строка (финиш и запас), detail — подробности мелко. */
+  /** pause — идущая пауза, main — финиш, detail — минуты мелко. */
   kind: 'pause' | 'main' | 'detail';
+  /** Цвет финиша (только у main). */
+  tone?: ForecastTone;
 }
 
 /**
- * Главное — одна строка: «Финиш ≈ 18:50 · запас 40 мин» (запас — сколько ещё можно отдыхать) или
- * красным «Финиш ≈ 19:41 · на 11 мин позже дедлайна». Над ней — идущая пауза, под ней мелко — из
- * чего сложилось: «отстаём от плана на 4 мин · отдыхали 55 мин · нажмите ⟳ Пересчитать».
- * Пока идём ровно по плану и не отдыхали — финиш и запас плана.
+ * Две строки: «Финиш ≈ 19:38» цветом по запасу и под ней мелко «на 8 мин позже 19:30» или
+ * «запас 40 мин до 19:30». Над ними — идущая пауза. Из чего сложилось (отставание, паузы) не
+ * пишем — сбивает. Пока идём ровно по плану и не отдыхали — финиш и запас плана.
  */
 export function forecastText(f: Forecast): ForecastLine[] {
   const lines: ForecastLine[] = [];
   if (f.pause)
-    lines.push({
-      text: `☕ пауза с ${f.pause.since} · ${f.pause.min} мин`,
-      warn: false,
-      kind: 'pause',
-    });
+    lines.push({ text: `☕ пауза с ${f.pause.since} · ${f.pause.min} мин`, kind: 'pause' });
   const asPlanned = f.deltaMin === 0 && !f.pausedMin && !f.pause;
   const finish = asPlanned ? f.planFinish : f.finish;
   const slack = asPlanned ? f.planSlackMin : f.slackMin;
-  lines.push(
-    slack >= 0
-      ? { text: `Финиш ≈ ${finish} · запас ${slack} мин`, warn: false, kind: 'main' }
-      : { text: `Финиш ≈ ${finish} · на ${-slack} мин позже дедлайна`, warn: true, kind: 'main' },
-  );
-  const details: string[] = [];
-  if (f.deltaMin > 0) details.push(`отстаём от плана на ${f.deltaMin} мин`);
-  else if (f.deltaMin < 0) details.push(`опережаем план на ${-f.deltaMin} мин`);
-  if (f.pausedMin > 0 && !f.pause) details.push(`отдыхали ${f.pausedMin} мин`);
-  if (slack < 0 && !f.pause) details.push('нажмите ⟳ Пересчитать');
-  if (details.length) lines.push({ text: details.join(' · '), warn: false, kind: 'detail' });
+  lines.push({ text: `Финиш ≈ ${finish}`, kind: 'main', tone: forecastTone(slack) });
+  lines.push({
+    text:
+      slack > 0
+        ? `запас ${slack} мин до ${f.deadline}`
+        : slack < 0
+          ? `на ${-slack} мин позже ${f.deadline}`
+          : `ровно к ${f.deadline}`,
+    kind: 'detail',
+  });
   return lines;
 }
 

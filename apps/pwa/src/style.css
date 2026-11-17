@@ -10,6 +10,9 @@
   --warn-soft: #fff4dc;
   --error: #b42318;
   --error-soft: #fde8e7;
+  --fc-ahead: #15803d;
+  --fc-late: #dc2626;
+  --fc-very-late: #8b1026;
   color-scheme: light dark;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-text-size-adjust: 100%;
@@ -28,6 +31,9 @@
     --warn-soft: #3a2e10;
     --error: #f87171;
     --error-soft: #3b1717;
+    --fc-ahead: #4ade80;
+    --fc-late: #f87171;
+    --fc-very-late: #e11d48;
   }
 }
 
@@ -390,9 +396,21 @@ h1 {
   margin: 0;
 }
 
-/* Прогноз: главная строка крупно, подробности мелко. */
-.summary .fc-main {
-  font-size: 1.15em;
+/* Прогноз: «Финиш ≈ ЧЧ:ММ» цветом по запасу, под ним минуты мелко. */
+.summary .fc-plan {
+  color: var(--muted);
+}
+
+.summary .fc-ahead {
+  color: var(--fc-ahead);
+}
+
+.summary .fc-late {
+  color: var(--fc-late);
+}
+
+.summary .fc-very-late {
+  color: var(--fc-very-late);
 }
 
 .summary .fc-detail {
@@ -823,4 +841,12 @@ h1 {
   color: var(--muted);
   font: inherit;
   text-align: left;
+}
+
+/* Приход по плану у открытых КП: не прогноз, а расписание текущего плана. */
+.plan-time {
+  color: var(--muted);
+  font-style: italic;
+  font-weight: 400;
+  opacity: 0.8;
 }

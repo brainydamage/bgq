@@ -1,5 +1,6 @@
 // Экран «Штурман»: следующие точки плана, «вести» в Organic Maps, «пропустить».
 import type { Loc } from '@bgq/core';
+import { PlanTime } from './RouteView.tsx';
 import { geoUri, type KpRow, kpLabel, nextStops } from './route.ts';
 import { go } from './router.ts';
 
@@ -29,7 +30,7 @@ export function NavView(props: {
                 <span class="id">{r.kp.id}</span>
                 {r.kp.kind === 'riddle' && <span>🧩</span>}
                 <span class="spacer" />
-                <span class="muted">{r.stop?.arrive}</span>
+                {r.stop && <PlanTime hhmm={r.stop.arrive} />}
               </span>
               {r.kp.window && (
                 <span class="flag small">
