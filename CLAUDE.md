@@ -36,6 +36,7 @@ TypeScript/Node для всего, кроме OR-Tools солвера (Python). 
 - `packages/routing` — граф OSRM, матрица расстояний, сборка `Problem` для солвера, запуск солвера и сводка плана (`src/solve.ts`), свежесть `plan.json` (`src/plan-file.ts`: `freshPlan` — для kml и pwa, вместе с его `problem.json`), CLI (`src/cli.ts`).
 - `packages/export` — экспорт `points.json` (+ `plan.json`: линия маршрута, номера по порядку) → KML для Organic Maps, CLI (`src/cli.ts`).
 - `solver/` — Python-солвер OR-Tools: `src/bgq_solver/model.py` (модель, портфель стратегий), `improve.py` (доработка после OR-Tools: «взять один — убрать два», relocate, 2-opt, ILS), `plan.py` (времена прямым проходом → `Plan`), `cli.py` (`bgq-solve`); тесты в `solver/tests/`.
+- `packages/replan` — пересчёт маршрута на телефоне (без DOM): `src/evaluator.ts` + `src/improve.ts` — порт `improve.py` ход в ход (тот же порядок, что у Python, — тест на 10.10), `src/replan.ts` (`subProblem`: старт — последняя взятая точка, без взятых/пропущенных; `repair` неосуществимого порядка; `solve`; `replan` → «было/стало»); `scripts/bench.ts` — сравнение с OR-Tools на сценариях 10.10 (нужен uv).
 - `packages/sync` — сервер синхронизации событий: `src/handler.ts` (`POST /sync`: код команды, проверка каждого события, запись по id, чтение после курсора с запасом 60 с), `src/store.ts` (интерфейс + хранилище в памяти для тестов), `src/dynamo.ts`, `src/lambda.ts` (вход Lambda); `scripts/build.ts` → `infra/build/handler.mjs`, `scripts/local.ts` — тот же сервер на localhost без AWS.
 - `infra/` — Terraform: таблица `bgq-events`, Lambda `bgq-sync`, Function URL с CORS, общий код команды (`random_password`).
 - `packages/table` — таблица точек: kps + geo + map + overrides → `points.json` (координаты: ручная правка → карта → адрес), CLI (`src/cli.ts`).
@@ -63,4 +64,5 @@ TypeScript/Node для всего, кроме OR-Tools солвера (Python). 
 - `./bgq matrix` — расстояния пешком между точками (OSRM; `--haversine` — по прямой) → `matrix.json`.
 - `./bgq problem` — `points.json` + `matrix.json` + `params.json` → `problem.json` для солвера; время — от выхода после пролога (`start.depart` в `game.json`, иначе от старта).
 - `./bgq solve` — `problem.json` → `plan.json` (OR-Tools + доработка, ~14 с) + сводка; выход по умолчанию — в день игры «сейчас + 2 мин», иначе от получения комплекта; `--depart ЧЧ:ММ` — явно, `--time С` — лимит поиска.
+- `node packages/replan/scripts/bench.ts [--time МС] [--ortools С]` — пересчёт на TS против OR-Tools на сценариях 10.10 (17.11: хуже не больше 1% при 0,5–2 с).
 - `corepack pnpm check` — типы + линтер + vitest + ruff + pytest (нужен uv); `check:py` — только Python; `corepack pnpm format` — автоформат (Biome + ruff).
