@@ -216,42 +216,60 @@ export function forecast(
 export interface ForecastLine {
   text: string;
   warn: boolean;
+  /** pause — идущая пауза, main — главная строка (финиш и запас), detail — подробности мелко. */
+  kind: 'pause' | 'main' | 'detail';
 }
 
 /**
- * Пауза: «☕ пауза с 16:40 · 23 мин». Отклонение: «опережаем на 12 мин» / «отстаём на 8 мин».
- * Итог: «на паузу ещё 57 мин · ожидаемый финиш 18:07» или «опоздание 6 мин · ожидаемый финиш 19:10».
- * До старта плана и не в день игры отклонения нет — только финиш по плану и запас.
+ * Главное — одна строка: «Финиш ≈ 18:50 · запас 40 мин» (запас — сколько ещё можно отдыхать) или
+ * красным «Финиш ≈ 19:41 · на 11 мин позже дедлайна». Над ней — идущая пауза, под ней мелко — из
+ * чего сложилось: «отстаём от плана на 4 мин · отдыхали 55 мин · нажмите ⟳ Пересчитать».
+ * Пока идём ровно по плану и не отдыхали — финиш и запас плана.
  */
 export function forecastText(f: Forecast): ForecastLine[] {
   const lines: ForecastLine[] = [];
   if (f.pause)
-    lines.push({ text: `☕ пауза с ${f.pause.since} · ${f.pause.min} мин`, warn: false });
-  if (f.deltaMin > 0) lines.push({ text: `отстаём на ${f.deltaMin} мин`, warn: true });
-  else if (f.deltaMin < 0) lines.push({ text: `опережаем на ${-f.deltaMin} мин`, warn: false });
-  const paused = f.pausedMin > 0 && !f.pause ? ` · пауза была ${f.pausedMin} мин` : '';
+    lines.push({
+      text: `☕ пауза с ${f.pause.since} · ${f.pause.min} мин`,
+      warn: false,
+      kind: 'pause',
+    });
+  const asPlanned = f.deltaMin === 0 && !f.pausedMin && !f.pause;
+  const finish = asPlanned ? f.planFinish : f.finish;
+  const slack = asPlanned ? f.planSlackMin : f.slackMin;
   lines.push(
-    f.slackMin >= 0
-      ? {
-          text: `на паузу ещё ${f.slackMin} мин · ожидаемый финиш ${f.finish}${paused}`,
-          warn: false,
-        }
-      : { text: `опоздание ${-f.slackMin} мин · ожидаемый финиш ${f.finish}${paused}`, warn: true },
+    slack >= 0
+      ? { text: `Финиш ≈ ${finish} · запас ${slack} мин`, warn: false, kind: 'main' }
+      : { text: `Финиш ≈ ${finish} · на ${-slack} мин позже дедлайна`, warn: true, kind: 'main' },
   );
-  if (f.deltaMin === 0 && !f.pausedMin && !f.pause) {
-    const slack =
-      f.planSlackMin >= 0 ? `на паузу ${f.planSlackMin} мин` : `опоздание ${-f.planSlackMin} мин`;
-    lines[lines.length - 1] = {
-      text: `финиш по плану ${f.planFinish}, ${slack}`,
-      warn: f.planSlackMin < 0,
-    };
-  }
+  const details: string[] = [];
+  if (f.deltaMin > 0) details.push(`отстаём от плана на ${f.deltaMin} мин`);
+  else if (f.deltaMin < 0) details.push(`опережаем план на ${-f.deltaMin} мин`);
+  if (f.pausedMin > 0 && !f.pause) details.push(`отдыхали ${f.pausedMin} мин`);
+  if (slack < 0 && !f.pause) details.push('нажмите ⟳ Пересчитать');
+  if (details.length) lines.push({ text: details.join(' · '), warn: false, kind: 'detail' });
   return lines;
 }
 
 /** «64 · 6 б» — подпись КП. */
 export function kpLabel(kp: Kp): string {
   return `${kp.id} · ${kp.points} б`;
+}
+
+/**
+ * Пройденные КП плана — свернуть, чтобы список начинался со следующей точки. Видны: последняя
+ * взятая (откуда идём; по времени «взято», при равном — дальше по плану) и открытые по порядку
+ * плана. Скрыты остальные взятые и пропущенные.
+ */
+export function collapseDone(plan: readonly KpRow[]): { hidden: KpRow[]; shown: KpRow[] } {
+  let last: KpRow | undefined;
+  for (const r of plan) {
+    if (r.status !== 'taken') continue;
+    if (!last || (r.answerTime ?? '') >= (last.answerTime ?? '')) last = r;
+  }
+  const hidden = plan.filter((r) => r.status !== 'open' && r !== last);
+  const open = plan.filter((r) => r.status === 'open');
+  return { hidden, shown: last ? [last, ...open] : open };
 }
 
 /** Взято / всего по плану и баллы взятых (всех КП). */

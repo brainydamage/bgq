@@ -390,6 +390,16 @@ h1 {
   margin: 0;
 }
 
+/* Прогноз: главная строка крупно, подробности мелко. */
+.summary .fc-main {
+  font-size: 1.15em;
+}
+
+.summary .fc-detail {
+  font-weight: 400;
+  margin-top: 2px;
+}
+
 /* Пауза (обед): «☕ Начать паузу» / «▶ Закончить паузу» под прогнозом. */
 .pause-btn {
   margin-top: 8px;
@@ -795,4 +805,22 @@ h1 {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+}
+
+.replan-verdict {
+  font-weight: 600;
+}
+
+/* «▸ Пройденные · N» над списком плана. */
+.done-toggle {
+  display: block;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
 }

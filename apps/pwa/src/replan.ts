@@ -169,6 +169,30 @@ function side(score: RouteScore, t0: string, deadlineS: number, perMin: number):
   };
 }
 
+/**
+ * Итог одной строкой: «лучше на 5 б: убрать 57», «баллы те же: убрать 57, добавить 99»,
+ * «на 10 б меньше — цена паузы 45 мин: убрать …» (меньше — только ради паузы); ничего не
+ * меняется — пусто.
+ */
+export function verdictText(
+  v: Pick<ReplanView, 'before' | 'after' | 'added' | 'removed'>,
+  pauseMin = 0,
+): string {
+  const changes = [
+    ...(v.removed.length ? [`убрать ${v.removed.join(', ')}`] : []),
+    ...(v.added.length ? [`добавить ${v.added.join(', ')}`] : []),
+  ];
+  const diff = v.after.points - v.before.points;
+  const score =
+    diff > 0
+      ? `лучше на ${diff} б`
+      : diff < 0
+        ? `на ${-diff} б меньше${pauseMin ? ` — цена паузы ${pauseMin} мин` : ''}`
+        : 'баллы те же';
+  if (!changes.length) return diff ? score : '';
+  return `${score}: ${changes.join(', ')}`;
+}
+
 export function replanView(setup: ReplanSetup, r: Replan, t0: string): ReplanView {
   const perMin = setup.input.problem.latePenaltyPerMin;
   const before = new Set(r.before.order);

@@ -17,6 +17,7 @@ import {
   type ReplanSetup,
   replanSetup,
   runReplan,
+  verdictText,
 } from '../src/replan.ts';
 import { forecast, routeRows } from '../src/route.ts';
 import { game, plan, problem, table } from './fixture.ts';
@@ -105,6 +106,24 @@ describe('пересчёт отсюда и сейчас (10.10)', () => {
     expect(view.after.kps).toBeLessThan(view.before.kps);
     expect(view.removed.length).toBeGreaterThan(0);
     expect(view.next).toHaveLength(4);
+    // Обед 45 сохранили ценой точек: баллов меньше, чем у «было» с опозданием.
+    expect(verdictText(view, 45)).toBe(
+      `на ${view.before.points - view.after.points} б меньше — цена паузы 45 мин: убрать ${view.removed.join(', ')}`,
+    );
+  });
+
+  it('итог одной строкой', () => {
+    const side = (points: number) => ({ kps: 1, points, finish: '19:00', slackMin: 0 });
+    const v = (b: number, a: number, added: string[], removed: string[]) =>
+      verdictText({ before: side(b), after: side(a), added, removed });
+    expect(v(131, 136, [], ['57'])).toBe('лучше на 5 б: убрать 57');
+    expect(v(100, 100, ['99'], ['57', '61'])).toBe('баллы те же: убрать 57, 61, добавить 99');
+    expect(v(100, 97, [], ['57'])).toBe('на 3 б меньше: убрать 57');
+    expect(
+      verdictText({ before: side(100), after: side(97), added: [], removed: ['57'] }, 30),
+    ).toBe('на 3 б меньше — цена паузы 30 мин: убрать 57');
+    expect(v(100, 100, [], [])).toBe('');
+    expect(v(100, 102, [], [])).toBe('лучше на 2 б');
   });
 
   it('меньше паузы — больше точек', () => {

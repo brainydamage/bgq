@@ -12,6 +12,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import { makeEvent } from '../src/events.ts';
 import {
+  collapseDone,
   forecast,
   forecastText,
   geoUri,
@@ -161,7 +162,7 @@ describe('прогноз: опережение, отставание, пауза
     const f = forecast(phone, rows.plan, at(0)) as F;
     expect(f).toMatchObject({ deltaMin: 0, pausedMin: 0, slackMin: 0, planSlackMin: 0 });
     expect(forecastText(f)).toEqual([
-      { text: `финиш по плану ${f.planFinish}, на паузу 0 мин`, warn: false },
+      { text: `Финиш ≈ ${f.planFinish} · запас 0 мин`, warn: false, kind: 'main' },
     ]);
   });
 
@@ -171,8 +172,8 @@ describe('прогноз: опережение, отставание, пауза
     expect(f.slackMin).toBe(-7);
     expect(f.finish).toBe(hhmm(plan.finishS + 7 * 60));
     expect(forecastText(f)).toEqual([
-      { text: 'отстаём на 7 мин', warn: true },
-      { text: `опоздание 7 мин · ожидаемый финиш ${f.finish}`, warn: true },
+      { text: `Финиш ≈ ${f.finish} · на 7 мин позже дедлайна`, warn: true, kind: 'main' },
+      { text: 'отстаём от плана на 7 мин · нажмите ⟳ Пересчитать', warn: false, kind: 'detail' },
     ]);
   });
 
@@ -187,8 +188,8 @@ describe('прогноз: опережение, отставание, пауза
     expect(slack).toBeGreaterThanOrEqual(-lead);
     expect(f.slackMin).toBe(slack);
     expect(forecastText(f)).toEqual([
-      { text: `опережаем на ${-lead} мин`, warn: false },
-      { text: `на паузу ещё ${slack} мин · ожидаемый финиш ${f.finish}`, warn: false },
+      { text: `Финиш ≈ ${f.finish} · запас ${slack} мин`, warn: false, kind: 'main' },
+      { text: `опережаем план на ${-lead} мин`, warn: false, kind: 'detail' },
     ]);
   });
 
@@ -207,7 +208,10 @@ describe('прогноз: опережение, отставание, пауза
     expect(forecastText(f)[0]).toEqual({
       text: `☕ пауза с ${hhmm(first.arriveS - 300)} · 12 мин`,
       warn: false,
+      kind: 'pause',
     });
+    // Идущая пауза — без «нажмите ⟳ Пересчитать»: сначала закончить.
+    expect(forecastText(f).map((l) => l.kind)).toEqual(['pause', 'main']);
 
     // Резерв 45 мин (план строился до 18:45, дедлайн 19:30): после паузы на 12 мин — ещё 33.
     const reserve = { ...phone, deadline: '20:15' };
@@ -219,10 +223,8 @@ describe('прогноз: опережение, отставание, пауза
     expect(g).toMatchObject({ deltaMin: 0, pausedMin: 12, slackMin: 33, planSlackMin: 45 });
     expect(g.pause).toBeUndefined();
     expect(forecastText(g)).toEqual([
-      {
-        text: `на паузу ещё 33 мин · ожидаемый финиш ${g.finish} · пауза была 12 мин`,
-        warn: false,
-      },
+      { text: `Финиш ≈ ${g.finish} · запас 33 мин`, warn: false, kind: 'main' },
+      { text: 'отдыхали 12 мин', warn: false, kind: 'detail' },
     ]);
   });
 
@@ -288,5 +290,32 @@ describe('вести и экраны', () => {
     expect(parseHash('#что-то')).toBeNull();
     const kp = { name: 'kp', id: '25А' } as const;
     expect(parseHash(screenHash(kp))).toEqual(kp);
+  });
+});
+
+describe('пройденные КП свёрнуты', () => {
+  const ids = plan.stops.map((st) => st.kpId);
+  const id = (i: number) => ids[i] as string;
+
+  it('видны последняя взятая и открытые по плану; скрыты остальные взятые и пропущенные', () => {
+    const state = projectState(
+      [
+        ev(id(0), { type: 'taken', answerTime: '12:46' }, '12:46'),
+        ev(id(1), { type: 'skipped' }, '12:50'),
+        ev(id(2), { type: 'taken', answerTime: '13:05' }, '13:05'),
+        // Взяли точку дальше по плану раньше по времени — «откуда идём» всё равно последняя по времени.
+        ev(id(5), { type: 'taken', answerTime: '12:58' }, '12:58'),
+      ],
+      game.id,
+    );
+    const { hidden, shown } = collapseDone(routeRows(phone, state).plan);
+    expect(hidden.map((r) => r.kp.id)).toEqual([id(0), id(1), id(5)]);
+    expect(shown.slice(0, 4).map((r) => r.kp.id)).toEqual([id(2), id(3), id(4), id(6)]);
+    expect(shown.length + hidden.length).toBe(ids.length);
+  });
+
+  it('ничего не взято — сворачивать нечего', () => {
+    const rows = routeRows(phone, projectState([], game.id)).plan;
+    expect(collapseDone(rows)).toEqual({ hidden: [], shown: rows });
   });
 });

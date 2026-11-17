@@ -10,23 +10,21 @@ import {
   type ReplanView,
   replanSetup,
   runReplan,
+  verdictText,
 } from './replan.ts';
 import type { RouteRows } from './route.ts';
 
 const PAUSE_CHOICES_SET = new Set(PAUSE_CHOICES);
 
+/** «Было» / «Стало»: финиш (красным — позже дедлайна) и баллы; сколько КП — мелко. */
 function SideText(props: { title: string; side: ReplanSide }) {
   const s = props.side;
   return (
     <div class="replan-side">
       <strong>{props.title}</strong>
-      <span>
-        {s.kps} КП · {s.points} б
-      </span>
-      <span>финиш {s.finish}</span>
-      <span class={s.slackMin < 0 ? 'warn' : ''}>
-        {s.slackMin >= 0 ? `на паузу ${s.slackMin} мин` : `опоздание ${-s.slackMin} мин`}
-      </span>
+      <span class={s.slackMin < 0 ? 'warn' : ''}>финиш {s.finish}</span>
+      <span>{s.points} б</span>
+      <span class="muted small">{s.kps} КП</span>
     </div>
   );
 }
@@ -126,9 +124,11 @@ export function ReplanPanel(props: {
             <SideText title="Было" side={v.before} />
             <SideText title="Стало" side={v.after} />
           </div>
-          {same && <p class="muted small">Лучше не нашлось — порядок прежний.</p>}
-          {v.added.length > 0 && <p class="small">+ добавлены: {v.added.join(', ')}</p>}
-          {v.removed.length > 0 && <p class="small">− убраны: {v.removed.join(', ')}</p>}
+          {same ? (
+            <p class="muted small">Лучше не нашлось — порядок прежний.</p>
+          ) : (
+            verdictText(v, pauseMin) && <p class="replan-verdict">{verdictText(v, pauseMin)}</p>
+          )}
           {v.next.length > 0 && <p class="small">дальше: {v.next.join(' → ')} …</p>}
           <div class="replan-actions">
             <button

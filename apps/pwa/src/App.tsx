@@ -311,7 +311,10 @@ export function App() {
           <div class="summary">
             {fc ? (
               forecastText(fc).map((line) => (
-                <p key={line.text} class={line.warn ? 'warn' : ''}>
+                <p
+                  key={line.text}
+                  class={`fc-${line.kind}${line.warn ? ' warn' : ''}${line.kind === 'detail' ? ' muted small' : ''}`}
+                >
                   {line.text}
                 </p>
               ))

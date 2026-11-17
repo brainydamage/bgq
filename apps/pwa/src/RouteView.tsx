@@ -1,9 +1,15 @@
-// Экран «Маршрут» (секретарь): КП по порядку плана, затем «не в плане». Тап — карточка КП.
-import type { KpRow, RouteRows } from './route.ts';
+// Экран «Маршрут» (секретарь): КП по порядку плана (пройденные свёрнуты), затем «не в плане».
+// Тап — карточка КП.
+import { useState } from 'preact/hooks';
+import { collapseDone, type KpRow, type RouteRows } from './route.ts';
 import { go } from './router.ts';
 
 export function RouteView(props: { rows: RouteRows; hasPlan: boolean }) {
   const { plan, rest } = props.rows;
+  // Пройденные свёрнуты: сверху строка «Пройденные · N», дальше — откуда идём и что впереди.
+  const [showDone, setShowDone] = useState(false);
+  const { hidden, shown } = collapseDone(plan);
+  const visible = showDone ? plan : shown;
   return (
     <>
       {!props.hasPlan && (
@@ -12,9 +18,19 @@ export function RouteView(props: { rows: RouteRows; hasPlan: boolean }) {
           <code>./bgq pwa</code> и «Обновить игру».
         </p>
       )}
-      {plan.length > 0 && (
+      {hidden.length > 0 && (
+        <button
+          type="button"
+          class="done-toggle"
+          aria-expanded={showDone}
+          onClick={() => setShowDone(!showDone)}
+        >
+          {showDone ? '▾ Скрыть пройденные' : `▸ Пройденные · ${hidden.length}`}
+        </button>
+      )}
+      {visible.length > 0 && (
         <ul class="kps">
-          {plan.map((r) => (
+          {visible.map((r) => (
             <KpItem key={r.kp.id} row={r} />
           ))}
         </ul>
