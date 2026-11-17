@@ -175,10 +175,12 @@ export function gazetteerFromPbf(
   city: string,
   radiusM: number,
   now: Date = new Date(),
+  /** Центр района игры (`./bgq osm … --center`); без него — точка города в OSM. */
+  around?: LatLon,
 ): Gazetteer {
   const dir = mkdtempSync(join(tmpdir(), 'bgq-osmium-'));
   try {
-    const center = cityCenter(pbfPath, city);
+    const center = around ? { lat: around[0], lon: around[1] } : cityCenter(pbfPath, city);
 
     const area = join(dir, 'area.osm.pbf');
     const filtered = join(dir, 'filtered.osm.pbf');
@@ -204,12 +206,26 @@ export function gazetteerFromPbf(
       source: 'geofabrik',
       city,
       radiusM,
+      center: [center.lat, center.lon],
       osmBase: pbfTimestamp(pbfPath),
       fetchedAt: now.toISOString().replace(/\.\d+Z$/, 'Z'),
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+/** Центр из `--center`: «44.7987,20.4764» или «44.7987, 20.4764» (как копирует Google Maps). */
+export function parseCenter(text: string): LatLon {
+  const m = /^\s*(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*$/.exec(text);
+  const lat = Number(m?.[1]);
+  const lon = Number(m?.[2]);
+  if (!m || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+    throw new OsmiumError(
+      `--center: ожидаю «широта,долгота», например 44.7987,20.4764 — получено «${text}»`,
+    );
+  }
+  return [lat, lon];
 }
 
 /** Скачивает выгрузку целиком во временный файл и только потом подменяет старую. */

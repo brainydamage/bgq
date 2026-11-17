@@ -2,11 +2,13 @@ import type { Kp } from '@bgq/core';
 import { describe, expect, it } from 'vitest';
 import {
   buildIndex,
+  clusters,
   type Gazetteer,
   gazetteerFromOsm,
   geocodeKp,
   houseKey,
   type OsmElement,
+  parseCenter,
   serializeGazetteer,
   similarity,
   streetKey,
@@ -115,6 +117,156 @@ describe('gazetteerFromOsm', () => {
 
   it('serializeGazetteer — валидный JSON, тот же справочник', () => {
     expect(JSON.parse(serializeGazetteer(gaz))).toEqual(gaz);
+  });
+});
+
+describe('улицы-тёзки (Белград: Земун и Врачар)', () => {
+  // Врачар ~ (44.80, 20.47), Земун ~ (44.845, 20.41): одна «Његошева» в двух районах, 7 км.
+  const twinElements: OsmElement[] = [
+    {
+      type: 'way',
+      id: 1,
+      center: { lat: 44.805, lon: 20.473 },
+      tags: { highway: 'residential', name: 'Његошева' },
+    },
+    {
+      type: 'way',
+      id: 2,
+      center: { lat: 44.81, lon: 20.47 },
+      tags: { highway: 'residential', name: 'Његошева' },
+    },
+    {
+      type: 'way',
+      id: 3,
+      center: { lat: 44.847, lon: 20.411 },
+      tags: { highway: 'residential', name: 'Његошева' },
+    },
+    {
+      type: 'node',
+      id: 4,
+      lat: 44.8047,
+      lon: 20.4664,
+      tags: { 'addr:street': 'Његошева', 'addr:housenumber': '10а' },
+    },
+    {
+      type: 'node',
+      id: 5,
+      lat: 44.8468,
+      lon: 20.4107,
+      tags: { 'addr:street': 'Његошева', 'addr:housenumber': '10а' },
+    },
+    {
+      type: 'node',
+      id: 6,
+      lat: 44.8469,
+      lon: 20.4109,
+      tags: { 'addr:street': 'Његошева', 'addr:housenumber': '12' },
+    },
+    // Только адреса, без линии: тоже делится.
+    {
+      type: 'node',
+      id: 7,
+      lat: 44.8,
+      lon: 20.48,
+      tags: { 'addr:street': 'Синђелићева', 'addr:housenumber': '1' },
+    },
+    {
+      type: 'node',
+      id: 8,
+      lat: 44.848,
+      lon: 20.411,
+      tags: { 'addr:street': 'Синђелићева', 'addr:housenumber': '1' },
+    },
+    // Длинная улица с разрывами < 1,5 км — одна улица.
+    ...[0, 1, 2, 3, 4].map(
+      (k): OsmElement => ({
+        type: 'node',
+        id: 10 + k,
+        lat: 44.79 + k * 0.01,
+        lon: 20.47,
+        tags: { 'addr:street': 'Булевар', 'addr:housenumber': String(k + 1) },
+      }),
+    ),
+  ];
+  const meta = {
+    source: 'geofabrik' as const,
+    city: 'Београд',
+    radiusM: 5000,
+    osmBase: '2026-11-01T00:00:00Z',
+    fetchedAt: '2026-11-17T00:00:00Z',
+  };
+  const vracar = gazetteerFromOsm(twinElements, { ...meta, center: [44.7987, 20.4764] });
+
+  it('остаётся кусок у центра; дальний — в twins', () => {
+    const streets = (name: string) => vracar.addresses.filter((a) => a[0] === name);
+    expect(streets('Његошева')).toEqual([['Његошева', '10а', 44.8047, 20.4664]]);
+    expect(streets('Синђелићева')).toEqual([['Синђелићева', '1', 44.8, 20.48]]);
+    expect(streets('Булевар')).toHaveLength(5);
+    expect(vracar.twins?.map((t) => [t.street, t.addresses])).toEqual([
+      ['Његошева', 2],
+      ['Синђелићева', 1],
+    ]);
+    expect(vracar.twins?.[0]?.distanceM).toBeGreaterThan(6000);
+    expect(vracar.center).toEqual([44.7987, 20.4764]);
+  });
+
+  it('центр улицы — по оставшемуся куску; геокодер берёт дом на Врачаре', () => {
+    const s = vracar.streets.find((x) => x.name === 'Његошева');
+    expect(s?.center).toEqual([44.8075, 20.4715]);
+    const hit = geocodeKp(kp('64', 'Улица Његошева', '10а'), buildIndex(vracar));
+    expect(hit).toMatchObject({ method: 'exact', loc: { lat: 44.8047, lon: 20.4664 } });
+  });
+
+  it('центр в Земуне — остаётся Земун', () => {
+    const zemun = gazetteerFromOsm(twinElements, { ...meta, center: [44.845, 20.41] });
+    expect(zemun.addresses.filter((a) => a[0] === 'Његошева').map((a) => a[1])).toEqual([
+      '10а',
+      '12',
+    ]);
+  });
+
+  it('без центра (старые справочники) — как раньше: без twins, всё склеено', () => {
+    const old = gazetteerFromOsm(twinElements, meta);
+    expect(old.twins).toBeUndefined();
+    expect(old.center).toBeUndefined();
+    expect(old.addresses.filter((a) => a[0] === 'Његошева')).toHaveLength(3);
+  });
+
+  it('serializeGazetteer — центр в строку, twins по строке, тот же справочник', () => {
+    const text = serializeGazetteer(vracar);
+    expect(text).toContain('"center": [44.7987, 20.4764]');
+    expect(text).toContain('  "twins": [\n    {"street":"Његошева"');
+    expect(JSON.parse(text)).toEqual(vracar);
+    const empty = { ...vracar, twins: [] };
+    expect(JSON.parse(serializeGazetteer(empty))).toEqual(empty);
+  });
+
+  it('clusters — одиночная связь по разрыву', () => {
+    const groups = clusters(
+      [
+        [44.8, 20.47],
+        [44.81, 20.47],
+        [44.85, 20.41],
+        [44.82, 20.47],
+      ],
+      1500,
+    );
+    expect(groups.map((g) => [...g].sort())).toEqual(expect.arrayContaining([[0, 1, 3], [2]]));
+    expect(groups).toHaveLength(2);
+    expect(clusters([], 1500)).toEqual([]);
+  });
+});
+
+describe('parseCenter', () => {
+  it('«шир,дол» и «шир, дол» как из Google Maps', () => {
+    expect(parseCenter('44.7987,20.4764')).toEqual([44.7987, 20.4764]);
+    expect(parseCenter(' 44.7987, 20.4764 ')).toEqual([44.7987, 20.4764]);
+  });
+
+  it('мусор и невозможные координаты — ошибка', () => {
+    expect(() => parseCenter('Врачар')).toThrow(/--center/);
+    expect(() => parseCenter('144.8,20.4')).toThrow(/--center/);
+    expect(() => parseCenter('44.8')).toThrow(/--center/);
   });
 });
 

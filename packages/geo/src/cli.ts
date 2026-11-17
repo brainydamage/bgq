@@ -7,11 +7,12 @@ import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { Kp } from '@bgq/core';
 import { currentGameDir, InitError, loadGame } from '@bgq/ingest';
+import type { LatLon } from './distance.ts';
 import { evaluate, parseReference } from './evaluate.ts';
 import { buildIndex, type Gazetteer, serializeGazetteer } from './gazetteer.ts';
 import { geocodeAll } from './geocode.ts';
 import { citySlug } from './normalize.ts';
-import { downloadPbf, gazetteerFromPbf, OsmiumError } from './osmium.ts';
+import { downloadPbf, gazetteerFromPbf, OsmiumError, parseCenter } from './osmium.ts';
 import { formatEval, formatGeoSummary } from './report.ts';
 
 const GAMES_DIR = resolve(import.meta.dirname, '../../../games');
@@ -20,8 +21,11 @@ const PBF_NAME = 'serbia-latest.osm.pbf';
 
 const USAGE = [
   'usage:',
-  '  ./bgq osm <город> [--refresh]   накануне игры: справочник адресов OSM → games/osm/',
-  '                                  (--refresh — заново скачать выгрузку Сербии, ~240 МБ)',
+  '  ./bgq osm <город> [--center ШИР,ДОЛ] [--refresh]',
+  '                                  накануне игры: справочник адресов OSM → games/osm/',
+  '                                  --center — центр района игры (Врачар: 44.7987,20.4764);',
+  '                                  без него — центр города из OSM. Радиус 5 км.',
+  '                                  --refresh — заново скачать выгрузку Сербии, ~240 МБ',
   '  ./bgq geo [--date ГГГГ-ММ-ДД] [--reference <reference.yaml>]',
   '                                  координаты адресных КП последней игры → geo.json',
 ].join('\n');
@@ -42,7 +46,17 @@ async function main(): Promise<void> {
   if (command === 'osm') {
     const city = rest.join(' ').trim();
     if (!city) fail(`Укажите город: ./bgq osm "Сремска Митровица"\n${USAGE}`);
-    await loadGazetteer(gamesDir, city, { rebuild: true, redownload: args.values.refresh });
+    let center: LatLon | undefined;
+    try {
+      center = args.values.center === undefined ? undefined : parseCenter(args.values.center);
+    } catch (e) {
+      fail(`✗ ${(e as Error).message}`);
+    }
+    await loadGazetteer(gamesDir, city, {
+      rebuild: true,
+      redownload: args.values.refresh,
+      ...(center && { center }),
+    });
     return;
   }
   if (command === 'geo') {
@@ -59,6 +73,7 @@ function parse() {
     options: {
       date: { type: 'string' },
       refresh: { type: 'boolean', default: false },
+      center: { type: 'string' },
       reference: { type: 'string' },
       games: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
@@ -113,7 +128,7 @@ async function runGeo(gamesDir: string, o: { date?: string; reference?: string }
 async function loadGazetteer(
   gamesDir: string,
   city: string,
-  o: { rebuild: boolean; redownload: boolean },
+  o: { rebuild: boolean; redownload: boolean; center?: LatLon },
 ): Promise<Gazetteer> {
   const osmDir = join(gamesDir, 'osm');
   const path = join(osmDir, `${citySlug(city)}.json`);
@@ -134,19 +149,34 @@ async function loadGazetteer(
     console.log(`✓ за ${Math.round((Date.now() - t0) / 1000)} с → ${rel(pbf)}`);
   }
 
-  console.log(`Собираю справочник: ${city}, радиус ${RADIUS_M / 1000} км…`);
+  const around = o.center ? ` вокруг ${o.center.join(',')}` : '';
+  console.log(`Собираю справочник: ${city}, радиус ${RADIUS_M / 1000} км${around}…`);
   let gaz: Gazetteer;
   try {
-    gaz = gazetteerFromPbf(pbf, city, RADIUS_M);
+    gaz = gazetteerFromPbf(pbf, city, RADIUS_M, new Date(), o.center);
   } catch (e) {
     if (!(e instanceof OsmiumError)) throw e;
     fail(`✗ ${e.message}`);
   }
   writeFileSync(path, serializeGazetteer(gaz));
   console.log(
-    `✓ улиц ${gaz.streets.length}, адресов ${gaz.addresses.length}, данные OSM на ${gaz.osmBase.slice(0, 10)} → ${rel(path)}\n`,
+    `✓ улиц ${gaz.streets.length}, адресов ${gaz.addresses.length}, данные OSM на ${gaz.osmBase.slice(0, 10)} → ${rel(path)}`,
   );
+  console.log(`${formatTwins(gaz)}\n`);
   return gaz;
+}
+
+/** Улицы-тёзки, отброшенные при сборке: какие и как далеко. */
+function formatTwins(gaz: Gazetteer): string {
+  const twins = gaz.twins ?? [];
+  if (!twins.length) return '  тёзок нет';
+  const km = (m: number) => `${(m / 1000).toFixed(1).replace('.', ',')} км`;
+  const shown = twins
+    .slice(0, 10)
+    .map((t) => `${t.street} (${t.addresses} адр., ${km(t.distanceM)})`)
+    .join(', ');
+  const more = twins.length > 10 ? ` и ещё ${twins.length - 10}` : '';
+  return `△ улицы-тёзки дальше от центра отброшены — взят ближайший кусок: ${shown}${more}`;
 }
 
 /** Путь относительно cwd; вне cwd — абсолютный. */

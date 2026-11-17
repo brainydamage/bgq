@@ -1,4 +1,4 @@
-import { centroid, type LatLon } from './distance.ts';
+import { centroid, haversineM, type LatLon } from './distance.ts';
 import { houseKey, streetKey } from './normalize.ts';
 
 /** Справочник адресов города из OSM — компактный, кэшируется на диск. */
@@ -8,6 +8,13 @@ export interface Gazetteer {
   source: 'geofabrik' | 'overpass';
   city: string;
   radiusM: number;
+  /** Центр выгрузки: `--center` (район игры) или точка города в OSM. В старых справочниках нет. */
+  center?: [number, number];
+  /**
+   * Улицы-тёзки дальше от центра (Земун и центр Белграда): их адреса отброшены, остался
+   * ближайший к центру кусок. Есть, только если справочник собран с центром.
+   */
+  twins?: GazetteerTwin[];
   /** На какой момент данные OSM. */
   osmBase: string;
   fetchedAt: string;
@@ -24,6 +31,21 @@ export interface GazetteerStreet {
   center: [number, number] | null;
 }
 
+export interface GazetteerTwin {
+  street: string;
+  /** Сколько адресов отброшено. */
+  addresses: number;
+  /** Центр отброшенного куска и его расстояние от центра справочника. */
+  at: [number, number];
+  distanceM: number;
+}
+
+/**
+ * Разрыв, после которого одноимённые куски улицы считаются разными улицами. Дома одной улицы
+ * идут подряд; Његошева на Врачаре и в Земуне — в 5 км. Запас на парки и пустыри без адресов.
+ */
+export const TWIN_GAP_M = 1500;
+
 /** Объект OSM: точка — lat/lon, линия или полигон — center (центр bbox). */
 export interface OsmElement {
   type: 'node' | 'way' | 'relation';
@@ -38,6 +60,8 @@ export interface GazetteerMeta {
   source: Gazetteer['source'];
   city: string;
   radiusM: number;
+  /** С центром — одноимённые улицы дальше TWIN_GAP_M отбрасываются, кроме ближайшей. */
+  center?: LatLon;
   osmBase: string;
   fetchedAt: string;
 }
@@ -99,6 +123,8 @@ export function gazetteerFromOsm(elements: OsmElement[], meta: GazetteerMeta): G
     }
   }
 
+  const twins = meta.center ? dropTwins(meta.center, streetCenters, addresses) : [];
+
   // Улицы, известные только по addr:street, — центр по их адресам.
   for (const [street, , lat, lon] of addresses.values()) {
     if (!streetAliases.has(street)) streetAliases.set(street, new Set());
@@ -121,6 +147,10 @@ export function gazetteerFromOsm(elements: OsmElement[], meta: GazetteerMeta): G
     source: meta.source,
     city: meta.city,
     radiusM: meta.radiusM,
+    ...(meta.center && {
+      center: [round6(meta.center[0]), round6(meta.center[1])] as [number, number],
+      twins,
+    }),
     osmBase: meta.osmBase,
     fetchedAt: meta.fetchedAt,
     copyright: '© OpenStreetMap contributors, ODbL 1.0',
@@ -129,12 +159,101 @@ export function gazetteerFromOsm(elements: OsmElement[], meta: GazetteerMeta): G
   };
 }
 
+/**
+ * Одноимённые улицы в разных районах (в Белграде — Земун и центр) склеились бы в одну:
+ * у «Његошева 10а» два дома в 5 км, и геокодер взял бы середину. Делим точки улицы
+ * (центры её линий и адреса) на куски с разрывом > TWIN_GAP_M и оставляем ближайший к центру.
+ */
+function dropTwins(
+  center: LatLon,
+  streetCenters: Map<string, LatLon[]>,
+  addresses: Map<string, Gazetteer['addresses'][number]>,
+): GazetteerTwin[] {
+  const rowsByStreet = new Map<string, [string, Gazetteer['addresses'][number]][]>();
+  for (const [key, row] of addresses) {
+    rowsByStreet.set(row[0], [...(rowsByStreet.get(row[0]) ?? []), [key, row]]);
+  }
+  const twins: GazetteerTwin[] = [];
+  for (const street of new Set([...streetCenters.keys(), ...rowsByStreet.keys()])) {
+    const lines = streetCenters.get(street) ?? [];
+    const rows = rowsByStreet.get(street) ?? [];
+    const points: LatLon[] = [...lines, ...rows.map(([, r]) => [r[2], r[3]] as const)];
+    const groups = clusters(points, TWIN_GAP_M);
+    if (groups.length < 2) continue;
+    const dist = (g: number[]) =>
+      Math.min(...g.map((i) => haversineM(points[i] as LatLon, center)));
+    const [keep, ...drop] = [...groups].sort((a, b) => dist(a) - dist(b));
+    const kept = new Set(keep);
+    streetCenters.set(
+      street,
+      lines.filter((_, i) => kept.has(i)),
+    );
+    for (const [j, [key]] of rows.entries()) {
+      if (!kept.has(lines.length + j)) addresses.delete(key);
+    }
+    for (const g of drop) {
+      const at = centroid(g.map((i) => points[i] as LatLon)) as LatLon;
+      twins.push({
+        street,
+        addresses: g.filter((i) => i >= lines.length).length,
+        at: [round6(at[0]), round6(at[1])],
+        distanceM: Math.round(haversineM(at, center)),
+      });
+    }
+  }
+  const byName = (a: GazetteerTwin, b: GazetteerTwin) =>
+    a.street < b.street ? -1 : a.street > b.street ? 1 : a.distanceM - b.distanceM;
+  return twins.sort(byName);
+}
+
+/** Связные группы точек: соседи ближе gapM — в одной группе (одиночная связь). Индексы точек. */
+export function clusters(points: readonly LatLon[], gapM: number): number[][] {
+  const parent = points.map((_, i) => i);
+  const root = (i: number): number => {
+    let r = i;
+    while (parent[r] !== r) r = parent[r] as number;
+    while (parent[i] !== r) [parent[i], i] = [r, parent[i] as number];
+    return r;
+  };
+  // Быстрый отсев по широте: точки отсортированы, дальше gapM по широте — не соседи.
+  const order = points
+    .map((_, i) => i)
+    .sort((a, b) => (points[a]?.[0] ?? 0) - (points[b]?.[0] ?? 0));
+  const dLat = gapM / 111_320;
+  for (let x = 0; x < order.length; x++) {
+    const i = order[x] as number;
+    const pi = points[i] as LatLon;
+    for (let y = x + 1; y < order.length; y++) {
+      const j = order[y] as number;
+      const pj = points[j] as LatLon;
+      if (pj[0] - pi[0] > dLat) break;
+      if (root(i) !== root(j) && haversineM(pi, pj) <= gapM) parent[root(i)] = root(j);
+    }
+  }
+  const groups = new Map<number, number[]>();
+  for (let i = 0; i < points.length; i++) {
+    const r = root(i);
+    groups.set(r, [...(groups.get(r) ?? []), i]);
+  }
+  return [...groups.values()];
+}
+
 /** JSON справочника: шапка читаемо, улицы и адреса — по одному на строку (диффы в git). */
 export function serializeGazetteer(g: Gazetteer): string {
-  const { streets, addresses, ...head } = g;
+  const { streets, addresses, twins, ...head } = g;
   const lines = (rows: unknown[]) => rows.map((r) => `    ${JSON.stringify(r)}`).join(',\n');
-  const headJson = JSON.stringify(head, null, 2).slice(0, -2);
-  return `${headJson},\n  "streets": [\n${lines(streets)}\n  ],\n  "addresses": [\n${lines(addresses)}\n  ]\n}\n`;
+  const list = (name: string, rows: unknown[]) =>
+    rows.length ? `  "${name}": [\n${lines(rows)}\n  ]` : `  "${name}": []`;
+  const headJson = JSON.stringify(head, null, 2)
+    .slice(0, -2)
+    .replace(/("center": )\[\s+(\S+),\s+(\S+)\s+\]/, '$1[$2, $3]');
+  const parts = [
+    headJson,
+    ...(twins ? [list('twins', twins)] : []),
+    list('streets', streets),
+    list('addresses', addresses),
+  ];
+  return `${parts.join(',\n')}\n}\n`;
 }
 
 /** Индекс для поиска: ключи названий улиц и номера домов по улицам. */

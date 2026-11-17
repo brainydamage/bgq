@@ -8,13 +8,16 @@ export {
 } from './evaluate.ts';
 export {
   buildIndex,
+  clusters,
   type Gazetteer,
   type GazetteerIndex,
   type GazetteerMeta,
   type GazetteerStreet,
+  type GazetteerTwin,
   gazetteerFromOsm,
   type OsmElement,
   serializeGazetteer,
+  TWIN_GAP_M,
 } from './gazetteer.ts';
 export {
   type GeoMethod,
@@ -35,6 +38,7 @@ export {
   GEOFABRIK_SERBIA_URL,
   gazetteerFromPbf,
   OsmiumError,
+  parseCenter,
   pbfTimestamp,
   pickPlace,
   placesFromGeojsonSeq,

@@ -16,7 +16,7 @@ import {
   Problem,
   schemaErrors,
 } from '@bgq/core';
-import { cityCenter, citySlug } from '@bgq/geo';
+import { cityCenter, citySlug, type Gazetteer, parseCenter } from '@bgq/geo';
 import { currentGameDir, InitError, loadGame } from '@bgq/ingest';
 import { haversineTable, type MatrixFile, matrixFile, routePoints, SNAP_WARN_M } from './matrix.ts';
 import {
@@ -80,15 +80,30 @@ function loadPoints(gameDir: string): PointsFile {
   return data as PointsFile;
 }
 
+/**
+ * Центр графа — тот же, что у справочника адресов: `--center`, иначе центр из
+ * games/osm/<город>.json (его пишет geo-шаг `./bgq osm` чуть раньше), иначе точка города в OSM.
+ */
+function graphCenter(gamesDir: string, city: string, pbf: string, center?: string) {
+  if (center !== undefined) {
+    const [lat, lon] = parseCenter(center);
+    return { lat, lon };
+  }
+  const gazPath = join(gamesDir, 'osm', `${citySlug(city)}.json`);
+  const fromGaz = existsSync(gazPath) ? readJson<Gazetteer>(gazPath).center : undefined;
+  if (fromGaz) return { lat: fromGaz[0], lon: fromGaz[1] };
+  return cityCenter(pbf, city);
+}
+
 /** Граф OSRM для города; если нет — собрать из выгрузки Сербии. */
-function ensureGraph(gamesDir: string, city: string, rebuild: boolean): string {
+function ensureGraph(gamesDir: string, city: string, rebuild: boolean, center?: string): string {
   const dir = graphDir(gamesDir, city);
   if (graphReady(dir) && !rebuild) return dir;
   const pbf = join(gamesDir, 'osm', PBF_NAME);
   if (!existsSync(pbf)) throw new RoutingError(`нет ${rel(pbf)} — сначала ./bgq osm "${city}"`);
   console.log(`Готовлю пешеходный граф OSRM: ${city}…`);
   const t0 = Date.now();
-  const meta = buildGraph({ pbf, center: cityCenter(pbf, city), dir });
+  const meta = buildGraph({ pbf, center: graphCenter(gamesDir, city, pbf, center), dir });
   console.log(
     `✓ за ${Math.round((Date.now() - t0) / 1000)} с, данные OSM на ${meta.osmBase.slice(0, 10)} → ${rel(dir)}`,
   );
@@ -96,14 +111,14 @@ function ensureGraph(gamesDir: string, city: string, rebuild: boolean): string {
 }
 
 /** ./bgq osm — явная подготовка накануне: граф пересобираем всегда (секунды). */
-async function runOsm(gamesDir: string, city: string): Promise<number> {
+async function runOsm(gamesDir: string, city: string, center?: string): Promise<number> {
   if (!dockerAvailable()) {
     console.log('△ Docker не запущен — граф OSRM не готов. Маршрут посчитается по прямой ×1,3.');
     console.log('  Запустите Docker Desktop и повторите ./bgq osm, чтобы считать по улицам.');
     return 0;
   }
   try {
-    ensureGraph(gamesDir, city, true);
+    ensureGraph(gamesDir, city, true, center);
   } catch (e) {
     if (!(e instanceof RoutingError)) throw e;
     fail(`✗ ${e.message}`);
@@ -288,7 +303,7 @@ async function main(): Promise<void> {
     if (command === 'osm') {
       const city = rest.join(' ').trim();
       if (!city) fail(`Укажите город: ./bgq osm "Сремска Митровица"`);
-      process.exitCode = await runOsm(gamesDir, city);
+      process.exitCode = await runOsm(gamesDir, city, args.values.center);
     } else if (command === 'matrix') {
       process.exitCode = await runMatrix(gamesDir, args.values);
     } else if (command === 'problem') {
@@ -312,6 +327,7 @@ function parse() {
       games: { type: 'string' },
       haversine: { type: 'boolean', default: false },
       refresh: { type: 'boolean', default: false },
+      center: { type: 'string' },
       time: { type: 'string' },
       depart: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
